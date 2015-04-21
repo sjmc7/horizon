@@ -50,8 +50,8 @@ from openstack_dashboard.dashboards.project.instances \
 from openstack_dashboard.dashboards.project.instances \
     import workflows as project_workflows
 
-LOG = logging.getLogger(__name__)
 
+LOG = logging.getLogger(__name__)
 
 class IndexView(tables.DataTableView):
     table_class = project_tables.InstancesTable

@@ -41,9 +41,10 @@ from horizon.utils.memoized import memoized  # noqa
 from openstack_dashboard.api import base
 from openstack_dashboard.api import network_base
 
+from openstack_dashboard.api import cis
+
 
 LOG = logging.getLogger(__name__)
-
 
 # API static values
 INSTANCE_ACTIVE_STATE = 'ACTIVE'
@@ -594,6 +595,7 @@ def server_get(request, instance_id):
     return Server(novaclient(request).servers.get(instance_id), request)
 
 
+@cis.cis_wrapper
 def server_list(request, search_opts=None, all_tenants=False):
     page_size = utils.get_page_size(request)
     c = novaclient(request)
