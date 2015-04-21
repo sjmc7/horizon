@@ -51,8 +51,13 @@ def server_list(request, search_opts=None, all_tenants=False):
         def __init__(self, **entries):
             self.__dict__.update(entries)
 
+    class FakeInstance(ObjFromDict):
+        @property
+        def image_name(self):
+            return self.image.name
+
     def fake_instance(**entries):
-        instance = ObjFromDict(**entries)
+        instance = FakeInstance(**entries)
         instance.flavor = {'id': instance.flavor_id}
         instance.image = {'id': instance.image_id}
         instance.addresses = {}
