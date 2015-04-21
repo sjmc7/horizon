@@ -17,10 +17,13 @@
 
 from django.utils import http as utils_http
 from django.views import generic
+import logging
 
 from openstack_dashboard import api
 from openstack_dashboard.api.rest import urls
 from openstack_dashboard.api.rest import utils as rest_utils
+
+LOG = logging.getLogger(__name__)
 
 
 @urls.register
@@ -172,6 +175,21 @@ class Servers(generic.View):
             '/api/nova/servers/%s' % utils_http.urlquote(new.id),
             new.to_dict()
         )
+
+    @rest_utils.ajax()
+    def get(self, request):
+        """Get a list of servers.
+
+        Optional parameters are:
+
+        :param limit: How many results to return
+        :param offset: Ignore first <offset> results
+        :param sort_key: Order by
+        :param sort_descending: Defaults to False
+        """
+        search_opts = {}
+        server_list = api.nova.server_list(request, search_opts)[0]
+        return [s.to_dict() for s in server_list]
 
 
 @urls.register
