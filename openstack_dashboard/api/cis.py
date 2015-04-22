@@ -3,6 +3,7 @@ from horizon import exceptions
 import json
 import logging
 import requests
+import six
 import sys
 
 from . import base
@@ -52,8 +53,18 @@ def server_list(request, search_opts=None, all_tenants=False):
             self.__dict__.update(entries)
 
         def to_dict(self):
-            return self.__dict__
+            def recursive_to_dict(d):
+                if isinstance(d, dict):
+                    return dict((k, recursive_to_dict(v)) for k, v in six.iteritems(d))
+                elif isinstance(d, (list, tuple, set)):
+                    return [recursive_to_dict(i) for i in d]
+                elif hasattr(d, 'to_dict'):
+                    return d.to_dict()
+                else:
+                    return d
 
+            return recursive_to_dict(self.__dict__)
+            
     class FakeInstance(ObjFromDict):
         @property
         def image_name(self):

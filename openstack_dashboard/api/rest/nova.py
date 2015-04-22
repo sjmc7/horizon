@@ -15,6 +15,7 @@
 """API over the nova service.
 """
 
+from django.utils.datastructures import SortedDict
 from django.utils import http as utils_http
 from django.views import generic
 import logging
@@ -182,14 +183,42 @@ class Servers(generic.View):
 
         Optional parameters are:
 
+        :param simplified: Don't retrieve extended information (networks,
+                           flavor, image)
         :param limit: How many results to return
         :param offset: Ignore first <offset> results
         :param sort_key: Order by
         :param sort_descending: Defaults to False
         """
         search_opts = {}
-        server_list = api.nova.server_list(request, search_opts)[0]
-        return [s.to_dict() for s in server_list]
+        instances = api.nova.server_list(request, search_opts)[0]
+        if instances and not request.GET.get('simplified', False):
+            api.network.servers_update_addresses(self.request, instances)
+            flavors = api.nova.flavor_list(self.request)
+            images, more, prev = api.glance.image_list_detailed(self.request)
+
+            full_flavors = SortedDict([(str(flavor.id), flavor)
+                                       for flavor in flavors])
+            image_map = SortedDict([(str(image.id), image)
+                                    for image in images])
+
+            for instance in instances:
+                if hasattr(instance, 'image'):
+                    # Instance from image returns dict
+                    if isinstance(instance.image, dict):
+                        if instance.image.get('id') in image_map:
+                            instance.image = image_map[instance.image['id']]
+
+                flavor_id = instance.flavor["id"]
+                if flavor_id in full_flavors:
+                    instance.full_flavor = full_flavors[flavor_id]
+                else:
+                    # If the flavor_id is not in full_flavors list,
+                    # get it via nova api.
+                    instance.full_flavor = api.nova.flavor_get(
+                        self.request, flavor_id)
+
+        return [s.to_dict() for s in instances]
 
 
 @urls.register
