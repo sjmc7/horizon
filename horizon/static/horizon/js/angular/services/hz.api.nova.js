@@ -150,6 +150,28 @@ limitations under the License.
     };
 
     /**
+     * @name hz.api.novaAPI.getServers
+     * @description
+     * Get all servers or servers matching search parameters
+     * @param {object} searchOpts Specifies the search parameters
+     * @return {array} List of servers
+     */
+    this.getServers = function(searchOpts) {
+      var config = { params: { simplified: true } };
+      if (searchOpts) {
+        angular.forEach(searchOpts, function(value, key) {
+          var filterKey = 'filter.' + key;
+          config.params[filterKey] = value;
+        });
+      }
+
+      return apiService.get('/api/nova/servers', config)
+        .error(function() {
+          horizon.alert('error', gettext('Unable to retrieve servers.'));
+        });
+    };
+
+    /**
      * @name hz.api.novaAPI.getServer
      * @description
      * Get a single server by ID

@@ -15,6 +15,17 @@
       capitalize: function (string) {
         return string.charAt(0).toUpperCase() + string.slice(1);
       },
+      deserialize: function(paramString) {
+        var paramObj = {};
+        var urlPair = paramString.split('?');
+        urlPair[urlPair.length - 1].split('&')
+          .reduce(function(prev, curr) {
+            var pair = curr.split('=');
+            prev[pair[0]] = pair[1];
+            return prev;
+          }, paramObj);
+        return paramObj;
+      },
       /*
        Adds commas to any integer or numbers within a string for human display.
 

@@ -33,6 +33,7 @@ class ServicesTests(test.JasmineTests):
         'angular/form/form.js',
         'angular/help-panel/help-panel.js',
         'angular/login/login.js',
+        'angular/magic-search/magic-search.js',
         'angular/metadata-tree/metadata-tree.js',
         'angular/metadata-tree/metadata-tree-service.js',
         'angular/modal/modal.js',

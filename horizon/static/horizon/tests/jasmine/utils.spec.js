@@ -60,6 +60,15 @@ describe('hz.utils', function () {
         });
       });
 
+      describe('deserialize', function() {
+        it('should create an object from parameter string', function() {
+          var paramStr = 'http://127.0.0.1:8000/test?key=value&numKey=1';
+          var paramObj = { key: 'value', numKey: '1' };
+
+          expect(hzUtils.deserialize(paramStr)).toEqual(paramObj);
+        });
+      });
+
       describe('humanizeNumbers', function () {
         it('should add a comma every three number', function () {
           expect(hzUtils.humanizeNumbers('1234')).toBe('1,234');

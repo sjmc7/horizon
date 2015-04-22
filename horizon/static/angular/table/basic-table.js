@@ -4,6 +4,7 @@
   angular.module('hz.widget.table')
 
     .constant('FILTER_PLACEHOLDER_TEXT', gettext('Filter'))
+
     /**
      * @ngdoc directive
      * @name hz.widget.table.directive:searchBar
@@ -55,6 +56,137 @@
             element.find('.input-group').append(clone);
           });
         }
+      };
+    }])
+
+    /**
+     * @ngdoc directive
+     * @name hz.widget.table.directive:magicStSearch
+     * @element
+     * @description
+     * A directive to make Magic Search a replacement for st-search.
+     * This directive must wrap a magic-search directive and be inside
+     * a SmartTable.
+     *
+     * @restrict E
+     * @scope
+     *
+     * @example
+     * ```
+     * <magic-st-search>
+     *   <magic-search
+     *     template="/static/angular/magic-search/magic-search.html"
+     *     strings="filterStrings"
+     *     facets="{$ filterFacets $}">
+     *   </magic-search>
+     * </magic-st-search>
+     * ```
+     */
+    .directive('magicStSearch', [ 'hzUtils', function(hzUtils) {
+      return {
+        restrict: 'E',
+        scope: true,
+        link: function(scope, element, attr) {
+
+          // Callback function to update table
+          var update = angular.isDefined(attr.update) ? scope[attr.update] : undefined;
+
+          // When user changes a facet, use API filter
+          scope.$on('searchUpdated', function(event, query) {
+            // update url
+            var url = window.location.href;
+            if (url.indexOf('?') > -1) {
+              url = url.split('?')[0];
+            }
+            if (query.length > 0) {
+              url = url + '?' + query;
+            }
+            window.history.pushState(query, '', url);
+
+            if (angular.isDefined(update)) {
+              update(hzUtils.deserialize(query));
+            }
+          });
+        }
+      };
+    }])
+
+    /**
+     * @ngdoc directive
+     * @name hz.widget.table.directive:magicSearchBar
+     * @element
+     * @param {function} filterCallback Function to update table using query
+     * @param {object} filterFacets Facets allowed for searching
+     * @param {object} filterStrings Help content shown in search bar
+     * @description
+     * The `magicSearchBar` directive provides a template for a
+     * client side faceted search that utilizes Smart-Table's
+     * filtering capabilities as well.
+     *
+     * Controller definition:
+     * ```
+     * var nameFacet = {
+     *   label: gettext('Name'),
+     *   name: 'name',
+     *   singleton: true
+     * };
+     *
+     * var sizeFacet = {
+     *   label: gettext('Size'),
+     *   name: 'size',
+     *   singleton: false,
+     *   options: [
+     *     { label: gettext('Small'), key: 'small' },
+     *     { label: gettext('Medium'), key: 'medium' },
+     *     { label: gettext('Large'), key: 'large' },
+     *   ]
+     * };
+     *
+     * label - this is the text shown in top level facet dropdown menu
+     * name - this is the column key provided to Smart-Table
+     * singleton - 'true' if free text can be used as search term
+     * options - list of options shown in selected facet dropdown menu
+     *
+     * ctrl.items = [];
+     *
+     * ctrl.filterFacets = [ nameFacet, sizeFacet ];
+     *
+     * ctrl.filterStrings = {
+     *   cancel: gettext('Cancel'),
+     *   prompt: gettext('Click here for menu to filter rows'),
+     *   remove: gettext('Remove'),
+     *   text: gettext('In filtered rows')
+     * };
+     *
+     * ctrl.updateTable = function(query) {
+     *   // update the table using the query
+     *   items = getItems(query);
+     * };
+     * ```
+     *
+     * @restrict E
+     * @scope
+     *
+     * @example
+     * ```
+     * <div ng-controller="MyCtrl as ctrl">
+     *   <magic-search-bar
+     *     filter-callback="ctrl.updateTable"
+     *     filter-facets="ctrl.filterFacets"
+     *     filter-strings="ctrl.filterStrings">
+     *     </magic-search-bar>
+     * </div>
+     * ```
+     */
+    .directive('magicSearchBar', [ 'basePath', function(path) {
+      return {
+        restrict: 'E',
+        scope: {
+          filterCallback: '=',
+          filterStrings: '=',
+          filterFacets: '='
+        },
+        templateUrl: path + 'table/magic-search-bar.html'
       };
     }]);
 

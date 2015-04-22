@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans "Instances" %}{% endblock %}
+
+{% block main %}
+  <div ng-controller="instancesCtrl as ctrl">
+    <table hz-table ng-cloak
+      st-table="ctrl.displayedInstances"
+      st-safe-src="ctrl.instances"
+      class="table-striped table-rsp modern">
+      <thead>
+        <tr>
+          <th class="search-header" colspan="100">
+            <magic-search-bar
+              filter-callback="ctrl.update"
+              filter-facets="ctrl.facets"
+              filter-strings="ctrl.filterStrings">
+            </magic-search-bar>
+          </th>
+        </tr>
+        <tr>
+          <th>Name</th>
+          <th>Flavor</th>
+          <th>Image</th>
+          <th>Status</th>
+          <th>Key Pair</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr ng-repeat="instance in ctrl.displayedInstances">
+          <td>{$ instance.name $}</td>
+          <td>{$ instance.flavor.id $}</td>
+          <td>{$ instance.image.id $}</td>
+          <td>{$ instance.status $}</td>
+          <td>{$ instance.key_name $}</td>
+          <td>{$ instance.created $}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

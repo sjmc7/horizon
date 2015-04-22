@@ -1,0 +1,15 @@
+<div class="form-group has-feedback magic-search-bar">
+  <div class="input-group input-group-sm">
+    <span class="input-group-addon">
+      <span class="fa fa-search go"></span>
+    </span>
+    <magic-st-search update="filterCallback">
+      <magic-search
+        template="/static/angular/magic-search/magic-search.html"
+        strings="filterStrings"
+        facets="{$ filterFacets $}">
+      </magic-search>
+    </magic-st-search>
+  </div>
+</div>
+
