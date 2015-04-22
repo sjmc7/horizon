@@ -46,7 +46,10 @@ def server_list(request, search_opts=None, all_tenants=False):
         search_terms.append({'term': {'tenant_id': request.user.tenant_id}})
 
     for field, term in search_opts.get('query', []):
-        search_terms.append({'term': {field: term}})
+        if '*' in term or '?' in term:
+            search_terms.append({'wildcard': {field: term}})
+        else:
+            search_terms.append({'term': {field: term}})
 
     if search_terms:
         query = {
