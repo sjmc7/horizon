@@ -51,6 +51,9 @@ def server_list(request, search_opts=None, all_tenants=False):
         def __init__(self, **entries):
             self.__dict__.update(entries)
 
+        def to_dict(self):
+            return self.__dict__
+
     class FakeInstance(ObjFromDict):
         @property
         def image_name(self):
@@ -67,5 +70,4 @@ def server_list(request, search_opts=None, all_tenants=False):
 
     # Returns list, has_more
     return [fake_instance(**h['_source']) for h in elastic_results['hits']['hits']], False
-
 
