@@ -41,12 +41,32 @@ def cis_wrapper(fn):
 def server_list(request, search_opts=None, all_tenants=False):
     LOG.warning("CIS server-list")
     cis_url = _get_cis_url(request) + '/search'
-    query = {'match_all': {}}
+    search_terms = []
     if not all_tenants:
-        query = {'term': {'tenant_id': request.user.tenant_id}}
+        search_terms.append({'term': {'tenant_id': request.user.tenant_id}})
+
+    for field, term in search_opts.get('query', []):
+        search_terms.append({'term': {field: term}})
+
+    if search_terms:
+        query = {
+            'bool': {
+                'must': search_terms
+            }
+        }
+    else:
+        query = {'match_all': {}}
+
+    request_body = {
+        'query': query,
+        'type': 'instance'
+    }
+    if 'sort' in search_opts:
+        request_body['sort'] = search_opts['sort']
+
     elastic_results = requests.post(
         cis_url,
-        data=json.dumps({'query': query, "type": "instance"}),
+        data=json.dumps(request_body),
         headers={'X-Auth-Token': request.user.token.id}
     ).json()
     LOG.warning("%s %s", query, elastic_results)

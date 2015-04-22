@@ -15,16 +15,22 @@
 """API over the nova service.
 """
 
+import datetime
 from django.utils.datastructures import SortedDict
 from django.utils import http as utils_http
 from django.views import generic
 import logging
+import six
 
 from openstack_dashboard import api
 from openstack_dashboard.api.rest import urls
 from openstack_dashboard.api.rest import utils as rest_utils
 
+
 LOG = logging.getLogger(__name__)
+
+def profile_log(message):
+    LOG.info("[%s] %s", datetime.datetime.utcnow().strftime("%Y-%M-%d %H:%m:%S.%f"), message)
 
 
 @urls.register
@@ -187,14 +193,25 @@ class Servers(generic.View):
                            flavor, image)
         :param limit: How many results to return
         :param offset: Ignore first <offset> results
-        :param sort_key: Order by
-        :param sort_descending: Defaults to False
+        :param sort: Order by (field:direction)
         """
+        profile_log("Requesting nova instance list")
+
         search_opts = {}
+        if 'sort' in request.GET:
+            search_opts['sort'] = request.GET['sort']
+        for k, v in six.iteritems(request.GET):
+            if k.startswith('filter.'):
+                search_opts.setdefault('query', []).append((k[7:], v))
+
+        LOG.info(search_opts)
         instances = api.nova.server_list(request, search_opts)[0]
         if instances and not request.GET.get('simplified', False):
+            profile_log("Requesting network information for instances")
             api.network.servers_update_addresses(self.request, instances)
+            profile_log("Requesting flavor list")
             flavors = api.nova.flavor_list(self.request)
+            profile_log("Requesting image list")
             images, more, prev = api.glance.image_list_detailed(self.request)
 
             full_flavors = SortedDict([(str(flavor.id), flavor)
@@ -215,9 +232,10 @@ class Servers(generic.View):
                 else:
                     # If the flavor_id is not in full_flavors list,
                     # get it via nova api.
+                    profile_log("Requesting flavor information for flavor %s" % flavor_id)
                     instance.full_flavor = api.nova.flavor_get(
                         self.request, flavor_id)
-
+        LOG.debug("Returning %d results", len(instances))
         return [s.to_dict() for s in instances]
 
 
