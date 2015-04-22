@@ -41,12 +41,15 @@ def cis_wrapper(fn):
 def server_list(request, search_opts=None, all_tenants=False):
     LOG.warning("CIS server-list")
     cis_url = _get_cis_url(request) + '/search'
+    query = {'match_all': {}}
+    if not all_tenants:
+        query = {'term': {'tenant_id': request.user.tenant_id}}
     elastic_results = requests.post(
         cis_url,
-        data=json.dumps({'query': {'match_all': {}}, "type": "instance"}),
+        data=json.dumps({'query': query, "type": "instance"}),
         headers={'X-Auth-Token': request.user.token.id}
     ).json()
-    LOG.warning("%s", elastic_results)
+    LOG.warning("%s %s", query, elastic_results)
 
     class ObjFromDict(object):
         def __init__(self, **entries):
