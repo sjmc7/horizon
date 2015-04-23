@@ -157,7 +157,7 @@ limitations under the License.
      * @return {array} List of servers
      */
     this.getServers = function(searchOpts) {
-      var config = { params: { simplified: true } };
+      var config = { params: {} };
       if (searchOpts) {
         angular.forEach(searchOpts, function(value, key) {
           var filterKey = 'filter.' + key;

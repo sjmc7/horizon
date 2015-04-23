@@ -1,0 +1,16 @@
+<network ng-repeat="network in networks track by network.name">
+  <h4 ng-if="networks.length > 1">{$ network.name $}</h4>
+  <ul>
+    <li ng-repeat="fixedAddr in network.fixed">
+      {$ fixedAddr $}
+    </li>
+  </ul>
+  <floating-ip ng-if="network.floating.length">
+    <h5>{$ ::floatingLabel $}</h5>
+    <ul>
+      <li ng-repeat="floatingAddr in network.floating">
+        {$ floatingAddr $}
+      </li>
+    </ul>
+  </floating-ip>
+</network>

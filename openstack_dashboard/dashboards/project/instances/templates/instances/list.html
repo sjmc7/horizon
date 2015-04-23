@@ -19,22 +19,30 @@
           </th>
         </tr>
         <tr>
-          <th>Name</th>
-          <th>Flavor</th>
-          <th>Image</th>
-          <th>Status</th>
-          <th>Key Pair</th>
-          <th>Created</th>
+          <th st-sort="name">{$ ::ctrl.headers.name $}</th>
+          <th st-sort="image.name">{$ ::ctrl.headers.image $}</th>
+          <th st-sort="ip">{$ ::ctrl.headers.ip $}</th>
+          <th st-sort="full_flavor.name">{$ ::ctrl.headers.size $}</th>
+          <th st-sort="key_name">{$ ::ctrl.headers.keyPair $}</th>
+          <th st-sort="status">{$ ::ctrl.headers.status $}</th>
+          <th st-sort="availability_zone">{$ ::ctrl.headers.az $}</th>
+          <th st-sort="task_state">{$ ::ctrl.headers.task $}</th>
+          <th st-sort="power_state">{$ ::ctrl.headers.powerState $}</th>
+          <th st-sort="created">{$ ::ctrl.headers.created $}</th>
         </tr>
       </thead>
       <tbody>
         <tr ng-repeat="instance in ctrl.displayedInstances">
           <td>{$ instance.name $}</td>
-          <td>{$ instance.flavor.id $}</td>
-          <td>{$ instance.image.id $}</td>
-          <td>{$ instance.status $}</td>
+          <td>{$ instance.image.name $}</td>
+          <td><ip-address networks="instance.ipAddresses"></ip-address></td>
+          <td>{$ instance.full_flavor.name $}</td>
           <td>{$ instance.key_name $}</td>
-          <td>{$ instance.created $}</td>
+          <td>{$ instance.status | title $}</td>
+          <td>{$ instance.availability_zone $}</td>
+          <td>{$ instance.task_state | title $}</td>
+          <td>{$ instance.power_state | decode:ctrl.powerStateMap $}</td>
+          <td>{$ instance.created | date:'short' $}</td>
         </tr>
       </tbody>
     </table>
