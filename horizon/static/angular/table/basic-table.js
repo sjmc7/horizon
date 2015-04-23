@@ -82,14 +82,28 @@
      * </magic-st-search>
      * ```
      */
-    .directive('magicStSearch', [ 'hzUtils', function(hzUtils) {
+    .directive('magicStSearch', [ '$timeout', 'hzUtils', function($timeout, hzUtils) {
       return {
         restrict: 'E',
+        require: '^stTable',
         scope: true,
-        link: function(scope, element, attr) {
+        link: function(scope, element, attr, tableCtrl) {
 
           // Callback function to update table
           var update = angular.isDefined(attr.update) ? scope[attr.update] : undefined;
+          var timeoutPromise;
+
+          scope.$on('textSearch', function(event, text) {
+            // Apply some throttling
+            if (timeoutPromise) {
+              $timeout.cancel(timeoutPromise);
+            }
+            // Timeout needed to prevent
+            // $apply already in progress error
+            timeoutPromise = $timeout(function() {
+              tableCtrl.search(text);
+            }, 200);
+          });
 
           // When user changes a facet, use API filter
           scope.$on('searchUpdated', function(event, query) {

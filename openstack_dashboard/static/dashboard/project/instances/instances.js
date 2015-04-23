@@ -140,6 +140,9 @@
                                 firstAddress.floating[0];
                 }
 
+                instance.imageName = instance.image.name;
+                instance.flavorName = instance.full_flavor.name;
+
                 instance.task_state = instance['OS-EXT-STS:task_state'] || gettext('None');
                 instance.power_state = instance['OS-EXT-STS:power_state'];
                 delete instance['OS-EXT-STS:task_state'];

@@ -36,16 +36,16 @@
             <input type="checkbox"
               hz-select-all="ctrl.displayedInstances"/>
           </th>
-          <th st-sort="name">{% trans "Instance Name" %}</th>
-          <th st-sort="image.name">{% trans "Image Name" %}</th>
-          <th st-sort="ip">{% trans "IP Address" %}</th>
-          <th st-sort="full_flavor.name">{% trans "Size" %}</th>
-          <th st-sort="key_name">{% trans "Key Pair" %}</th>
-          <th st-sort="status">{% trans "Status" %}</th>
-          <th st-sort="availability_zone">{% trans "Availability Zone" %}</th>
-          <th st-sort="task_state">{% trans "Task" %}</th>
-          <th st-sort="power_state">{% trans "Power State" %}</th>
-          <th st-sort="created">{% trans "Created" %}</th>
+          <th st-sort="name" class="rsp-p1">{% trans "Instance Name" %}</th>
+          <th st-sort="imageName" class="rsp-p2">{% trans "Image Name" %}</th>
+          <th st-sort="ip" class="rsp-p2">{% trans "IP Address" %}</th>
+          <th st-sort="flavorName" class="rsp-p2">{% trans "Size" %}</th>
+          <th st-sort="key_name" class="rsp-p3">{% trans "Key Pair" %}</th>
+          <th st-sort="status" class="rsp-p1">{% trans "Status" %}</th>
+          <th st-sort="availability_zone" class="rsp-p2">{% trans "Availability Zone" %}</th>
+          <th st-sort="task_state" class="rsp-p1">{% trans "Task" %}</th>
+          <th st-sort="power_state" class="rsp-p3">{% trans "Power State" %}</th>
+          <th st-sort="created" class="rsp-p3">{% trans "Created" %}</th>
         </tr>
       </thead>
       <tbody>
@@ -62,18 +62,23 @@
               hz-select="instance"
               ng-model='selected[instance.id].checked'/>
           </td>
-          <td>{$ instance.name $}</td>
-          <td>{$ instance.image.name $}</td>
-          <td><ip-address networks="instance.ipAddresses"></ip-address></td>
-          <td>{$ instance.full_flavor.name $}</td>
-          <td>{$ instance.key_name $}</td>
-          <td>{$ instance.status | title $}</td>
-          <td>{$ instance.availability_zone $}</td>
-          <td>{$ instance.task_state | title $}</td>
-          <td>{$ instance.power_state | decode:ctrl.powerStateMap $}</td>
-          <td><time am-time-ago="instance.created"></time></td>
+          <td class="rsp-p1">{$ instance.name $}</td>
+          <td class="rsp-p2">{$ instance.imageName $}</td>
+          <td class="rsp-p2"><ip-address networks="instance.ipAddresses"></ip-address></td>
+          <td class="rsp-p2">{$ instance.flavorName $}</td>
+          <td class="rsp-p3">{$ instance.key_name $}</td>
+          <td class="rsp-p1">{$ instance.status | title $}</td>
+          <td class="rsp-p2">{$ instance.availability_zone $}</td>
+          <td class="rsp-p1">{$ instance.task_state | title $}</td>
+          <td class="rsp-p3">{$ instance.power_state | decode:ctrl.powerStateMap $}</td>
+          <td class="rsp-p3"><time am-time-ago="instance.created"></time></td>
         </tr>
       </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="100">Displayed {$ ctrl.displayedInstances.length $} items</td>
+        </tr>
+      </tfoot>
     </table>
   </div>
 {% endblock %}
