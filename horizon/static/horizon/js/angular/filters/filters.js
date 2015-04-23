@@ -114,8 +114,11 @@
      */
     .filter('decode', function() {
       return function(input, mapping) {
-        var val = mapping[input];
-        return angular.isDefined(val) ? val : input;
+        if (angular.isDefined(mapping)) {
+          var val = mapping[input];
+          return angular.isDefined(val) ? val : input;
+        }
+        return input;
       };
     })
 
