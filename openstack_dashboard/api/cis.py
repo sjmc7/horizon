@@ -63,6 +63,9 @@ class ObjFromDict(object):
  
 def server_list(request, search_opts=None, all_tenants=False):
     LOG.warning("CIS server-list")
+    if search_opts is None:
+        search_opts = {}
+
     cis_url = _get_cis_url(request) + '/search'
     search_terms = []
     if not all_tenants:
@@ -137,5 +140,10 @@ def image_list_detailed(request, marker=None, sort_dir='desc',
         @property
         def is_public(self):
             return self.visibility == 'public'
+
+        @property
+        def properties(self):
+            # Don't know if we have this
+            return {}
             
     return [FakeImage(**hit['_source']) for hit in elastic_results['hits']['hits']], False, False
