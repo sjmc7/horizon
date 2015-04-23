@@ -42,7 +42,7 @@
           <td>{$ instance.availability_zone $}</td>
           <td>{$ instance.task_state | title $}</td>
           <td>{$ instance.power_state | decode:ctrl.powerStateMap $}</td>
-          <td>{$ instance.created | date:'short' $}</td>
+          <td><time am-time-ago="instance.created"></time></td>
         </tr>
       </tbody>
     </table>

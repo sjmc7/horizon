@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  angular.module('hz.dashboard.project.instances', [ 'hz.api', 'smart-table', 'MagicSearch' ])
+  angular.module('hz.dashboard.project.instances', [ 'hz.api', 'smart-table', 'MagicSearch', 'angularMoment' ])
 
     /**
      * @ngdoc constant

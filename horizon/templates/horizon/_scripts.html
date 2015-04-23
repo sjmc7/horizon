@@ -109,6 +109,12 @@
 {% block custom_js_files %}{% endblock %}
 {% endcompress %}
 
+<!-- load momentJS (required for angular-moment) -->
+<script src="//cdnjs.cloudflare.com/ajax/libs/moment.js/2.10.2/moment.min.js"></script>
+
+<!-- load angular-moment -->
+<script src="//cdnjs.cloudflare.com/ajax/libs/angular-moment/0.10.0/angular-moment.min.js"></script>
+
 {% comment %} Client-side Templates (These should *not* be inside the "compress" tag.) {% endcomment %}
 {% include "horizon/client_side/templates.html" %}
 
