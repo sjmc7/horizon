@@ -38,6 +38,29 @@ def cis_wrapper(fn):
     return wrapped
 
 
+class ObjFromDict(object):
+    """
+    Generic object-from-a-dictionary wrapper. Since this is often passed
+    back to the data layer and has other objects added to it, to_dict is
+    more complicated than it has any right to be.
+    """
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
+
+    def to_dict(self):
+        def recursive_to_dict(d):
+            if isinstance(d, dict):
+                return dict((k, recursive_to_dict(v)) for k, v in six.iteritems(d))
+            elif isinstance(d, (list, tuple, set)):
+                return [recursive_to_dict(i) for i in d]
+            elif hasattr(d, 'to_dict'):
+                return d.to_dict()
+            else:
+                return d
+
+        return recursive_to_dict(self.__dict__)
+
+ 
 def server_list(request, search_opts=None, all_tenants=False):
     LOG.warning("CIS server-list")
     cis_url = _get_cis_url(request) + '/search'
@@ -62,7 +85,8 @@ def server_list(request, search_opts=None, all_tenants=False):
 
     request_body = {
         'query': query,
-        'type': 'instance'
+        'type': 'instance',
+        'index': 'nova',
     }
     if 'sort' in search_opts:
         request_body['sort'] = search_opts['sort']
@@ -74,23 +98,6 @@ def server_list(request, search_opts=None, all_tenants=False):
     ).json()
     LOG.warning("%s %s", query, elastic_results)
 
-    class ObjFromDict(object):
-        def __init__(self, **entries):
-            self.__dict__.update(entries)
-
-        def to_dict(self):
-            def recursive_to_dict(d):
-                if isinstance(d, dict):
-                    return dict((k, recursive_to_dict(v)) for k, v in six.iteritems(d))
-                elif isinstance(d, (list, tuple, set)):
-                    return [recursive_to_dict(i) for i in d]
-                elif hasattr(d, 'to_dict'):
-                    return d.to_dict()
-                else:
-                    return d
-
-            return recursive_to_dict(self.__dict__)
-            
     class FakeInstance(ObjFromDict):
         @property
         def image_name(self):
@@ -108,3 +115,25 @@ def server_list(request, search_opts=None, all_tenants=False):
     # Returns list, has_more
     return [fake_instance(**h['_source']) for h in elastic_results['hits']['hits']], False
 
+
+def image_list_detailed(request, marker=None, sort_dir='desc',
+                        sort_key='created_at', filters=None, paginate=False):
+    cis_url = _get_cis_url(request) + '/search'
+    request_body = {
+        'query': {'match_all': {}},
+        'type': 'image',
+        'index': 'glance',
+    }
+
+    elastic_results = requests.post(
+        cis_url,
+        data=json.dumps(request_body),
+        headers={'X-Auth-Token': request.user.token.id}
+    ).json()
+
+    class FakeImage(ObjFromDict):
+        @property
+        def is_public(self):
+            return self.visibility == 'public'
+            
+    return [FakeImage(**hit['_source']) for hit in elastic_results['hits']['hits']], False, False

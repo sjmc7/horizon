@@ -34,6 +34,7 @@ from horizon import exceptions
 from horizon.utils import functions as utils
 from horizon.utils.memoized import memoized  # noqa
 from openstack_dashboard.api import base
+from openstack_dashboard.api import cis
 
 
 LOG = logging.getLogger(__name__)
@@ -63,6 +64,7 @@ def image_get(request, image_id):
     return image
 
 
+@cis.cis_wrapper
 def image_list_detailed(request, marker=None, sort_dir='desc',
                         sort_key='created_at', filters=None, paginate=False):
     limit = getattr(settings, 'API_RESULT_LIMIT', 1000)
