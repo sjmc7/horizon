@@ -16,6 +16,7 @@
 """
 
 import datetime
+from django.conf import settings
 from django.utils.datastructures import SortedDict
 from django.utils import http as utils_http
 from django.views import generic
@@ -28,6 +29,7 @@ from openstack_dashboard.api.rest import utils as rest_utils
 
 
 LOG = logging.getLogger(__name__)
+
 
 def profile_log(message):
     LOG.info("[%s] %s", datetime.datetime.utcnow().strftime("%Y-%M-%d %H:%m:%S.%f"), message)
@@ -204,15 +206,34 @@ class Servers(generic.View):
             if k.startswith('filter.'):
                 search_opts.setdefault('query', []).append((k[7:], v))
 
-        LOG.info(search_opts)
+        profile_log('Retrieving instances')
         instances = api.nova.server_list(request, search_opts)[0]
         if instances and not request.GET.get('simplified', False):
-            profile_log("Requesting network information for instances")
-            api.network.servers_update_addresses(self.request, instances)
-            profile_log("Requesting flavor list")
-            flavors = api.nova.flavor_list(self.request)
-            profile_log("Requesting image list")
-            images, more, prev = api.glance.image_list_detailed(self.request)
+
+            if getattr(settings, 'MULTITHREAD_NOVA_REST_API', False):
+                import threading
+                def run_in_thread(fn, *args, **kwargs):
+                    setattr(threading.current_thread(), '_result', fn(*args, **kwargs))
+
+                threads = [
+                    threading.Thread(target=run_in_thread, args=(api.network.servers_update_addresses, self.request, instances)),
+                    threading.Thread(target=run_in_thread, args=(api.nova.flavor_list, self.request)),
+                    threading.Thread(target=run_in_thread, args=(api.glance.image_list_detailed, self.request))
+                ]
+                profile_log("Starting threaded operations")
+                for t in threads: t.start()
+                profile_log("Waiting on threaded operations")
+                for t in threads: t.join()
+                flavors = threads[1]._result
+                images, more, prev = threads[2]._result
+            else:
+                profile_log("Requesting network information for instances")
+                api.network.servers_update_addresses(self.request, instances)
+                profile_log("Requesting flavor list")
+                flavors = api.nova.flavor_list(self.request)
+                profile_log("Requesting image list")
+                images, more, prev = api.glance.image_list_detailed(self.request)
+            profile_log("Retrieved extra instance information")
 
             full_flavors = SortedDict([(str(flavor.id), flavor)
                                        for flavor in flavors])
