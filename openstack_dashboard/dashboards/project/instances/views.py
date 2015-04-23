@@ -53,13 +53,6 @@ from openstack_dashboard.dashboards.project.instances \
 
 LOG = logging.getLogger(__name__)
 
-
-class ListView(tables.DataTableView):
-    template_name = 'project/instances/list.html'
-    page_title = _("Instances")
-    table_class = project_tables.InstancesTable
-
-
 class IndexView(tables.DataTableView):
     table_class = project_tables.InstancesTable
     template_name = 'project/instances/index.html'
