@@ -2,6 +2,10 @@
 {% load i18n %}
 {% block title %}{% trans "Instances" %}{% endblock %}
 
+{% block page_header %}
+  {% include "horizon/common/_domain_page_header.html" with title=_("Instances") %}
+{% endblock page_header %}
+
 {% block main %}
   <div ng-controller="instancesCtrl as ctrl">
     <table hz-table ng-cloak
@@ -15,24 +19,49 @@
               filter-callback="ctrl.update"
               filter-facets="ctrl.facets"
               filter-strings="ctrl.filterStrings">
+              <action-list class="btn-addon">
+                <action ng-controller="LaunchInstanceModalCtrl"
+                  action-classes="'btn btn-default'"
+                  callback="openLaunchInstanceWizard"
+                  item="{ successUrl: '/project/instances/list' }">
+                  <span class="fa fa-cloud-upload"></span>
+                  {% trans 'Launch Instance' %}
+                </action>
+              </action-list>
             </magic-search-bar>
           </th>
         </tr>
         <tr>
-          <th st-sort="name">{$ ::ctrl.headers.name $}</th>
-          <th st-sort="image.name">{$ ::ctrl.headers.image $}</th>
-          <th st-sort="ip">{$ ::ctrl.headers.ip $}</th>
-          <th st-sort="full_flavor.name">{$ ::ctrl.headers.size $}</th>
-          <th st-sort="key_name">{$ ::ctrl.headers.keyPair $}</th>
-          <th st-sort="status">{$ ::ctrl.headers.status $}</th>
-          <th st-sort="availability_zone">{$ ::ctrl.headers.az $}</th>
-          <th st-sort="task_state">{$ ::ctrl.headers.task $}</th>
-          <th st-sort="power_state">{$ ::ctrl.headers.powerState $}</th>
-          <th st-sort="created">{$ ::ctrl.headers.created $}</th>
+          <th>
+            <input type="checkbox"
+              hz-select-all="ctrl.displayedInstances"/>
+          </th>
+          <th st-sort="name">{% trans "Instance Name" %}</th>
+          <th st-sort="image.name">{% trans "Image Name" %}</th>
+          <th st-sort="ip">{% trans "IP Address" %}</th>
+          <th st-sort="full_flavor.name">{% trans "Size" %}</th>
+          <th st-sort="key_name">{% trans "Key Pair" %}</th>
+          <th st-sort="status">{% trans "Status" %}</th>
+          <th st-sort="availability_zone">{% trans "Availability Zone" %}</th>
+          <th st-sort="task_state">{% trans "Task" %}</th>
+          <th st-sort="power_state">{% trans "Power State" %}</th>
+          <th st-sort="created">{% trans "Created" %}</th>
         </tr>
       </thead>
       <tbody>
+        <tr ng-if="ctrl.displayedInstances.length === 0">
+          <td colspan="100">
+            <div class="no-rows-help">
+              {% trans "No instances available" %}
+            </div>
+          </td>
+        </tr>
         <tr ng-repeat="instance in ctrl.displayedInstances">
+          <td>
+            <input type="checkbox"
+              hz-select="instance"
+              ng-model='selected[instance.id].checked'/>
+          </td>
           <td>{$ instance.name $}</td>
           <td>{$ instance.image.name $}</td>
           <td><ip-address networks="instance.ipAddresses"></ip-address></td>

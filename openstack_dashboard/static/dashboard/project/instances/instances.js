@@ -10,16 +10,16 @@
      */
     .constant('POWER_STATES',
       {
-        0: 'NO STATE',
-        1: 'RUNNING',
-        2: 'BLOCKED',
-        3: 'PAUSED',
-        4: 'SHUTDOWN',
-        5: 'SHUTOFF',
-        6: 'CRASHED',
-        7: 'SUSPENDED',
-        8: 'FAILED',
-        9: 'BUILDING'
+        0: gettext('NO STATE'),
+        1: gettext('RUNNING'),
+        2: gettext('BLOCKED'),
+        3: gettext('PAUSED'),
+        4: gettext('SHUTDOWN'),
+        5: gettext('SHUTOFF'),
+        6: gettext('CRASHED'),
+        7: gettext('SUSPENDED'),
+        8: gettext('FAILED'),
+        9: gettext('BUILDING')
       }
     )
 
@@ -62,22 +62,10 @@
      * @description Controller for the instances table
      *
      */
-    .controller('instancesCtrl', [ 'hzUtils', 'POWER_STATES', 'novaAPI',
+    .controller('instancesCtrl',
+      [ 'hzUtils', 'POWER_STATES', 'novaAPI',
       function(hzUtils, POWER_STATES, novaAPI) {
         var ctrl = this;
-
-        ctrl.headers = {
-          name: gettext('Instance Name'),
-          image: gettext('Image Name'),
-          ip: gettext('IP Address'),
-          size: gettext('Size'),
-          keyPair: gettext('Key Pair'),
-          status: gettext('Status'),
-          az: gettext('Availability Zone'),
-          task: gettext('Task'),
-          powerState: gettext('Power State'),
-          created: gettext('Created')
-        };
 
         ctrl.powerStateMap = POWER_STATES;
 
@@ -104,7 +92,10 @@
               { key: 'shutoff', label: gettext('Shutoff') },
               { key: 'suspended', label: gettext('Suspended') },
               { key: 'paused', label: gettext('Paused') },
-              { key: 'error', label: gettext('Error') }
+              { key: 'error', label: gettext('Error') },
+              { key: 'rescue', label: gettext('Rescue') },
+              { key: 'shelved', label: gettext('Shelved') },
+              { key: 'shelved_offloaded', label: gettext('Shelved Offloaded') }
             ]
           }
         ];
