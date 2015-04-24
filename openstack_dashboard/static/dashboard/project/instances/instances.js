@@ -51,7 +51,7 @@
         },
         templateUrl: path + 'project/instances/ip_address.html',
         controller: [ '$scope', function($scope) {
-          $scope.floatingLabel = gettext('Floating IPs:');
+          $scope.floatingLabel = gettext('Floating IPs');
         }]
       };
     }])
@@ -63,8 +63,8 @@
      *
      */
     .controller('instancesCtrl',
-      [ 'hzUtils', 'POWER_STATES', 'novaAPI',
-      function(hzUtils, POWER_STATES, novaAPI) {
+      [ '$interval', 'hzUtils', 'POWER_STATES', 'novaAPI',
+      function($interval, hzUtils, POWER_STATES, novaAPI) {
         var ctrl = this;
 
         ctrl.powerStateMap = POWER_STATES;
@@ -99,6 +99,25 @@
             ]
           }
         ];
+
+        ctrl.terminateInstances = function(selected) {
+          var serverIds = [], instanceNameList = [];
+          angular.forEach(selected, function(selection, id) {
+            if (selection.checked) {
+              serverIds.push(id);
+              instanceNameList.push(selection.item.name);
+            }
+          });
+
+          novaAPI.deleteServers(serverIds)
+            .then(function() {
+              var instanceNames = instanceNameList.join(', ');
+              var successMsg = gettext('Deleted %s');
+              horizon.alert('success', interpolate(successMsg, [ instanceNames ]));
+
+              $interval(ctrl.update, 2000, 5);
+            })
+        };
 
         ctrl.update = function(params) {
           // If params is empty, grab query from URL
@@ -155,6 +174,8 @@
         };
 
         ctrl.update();
+
+        $interval(ctrl.update, 5000, 2);
       }
     ]);
 

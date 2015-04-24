@@ -203,9 +203,7 @@
         transclude: true,
         templateUrl: path + 'table/magic-search-bar.html',
         link: function(scope, element, attrs, ctrl, transclude) {
-          transclude(scope, function(clone){
-            element.find('.input-group').append(clone);
-          });
+          element.find('ng-transclude').children().first().unwrap();
         }
       };
     }]);

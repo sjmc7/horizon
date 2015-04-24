@@ -28,6 +28,15 @@
                   {% trans 'Launch Instance' %}
                 </action>
               </action-list>
+              <action-list class="btn-addon">
+                <action action-classes="'btn btn-default btn-danger'"
+                  callback="ctrl.terminateInstances"
+                  item="selected"
+                  disabled="numSelected === 0">
+                  <span class="fa fa-trash-o"></span>
+                  {% trans 'Terminate Instances' %}
+                </action>
+              </action-list>
             </magic-search-bar>
           </th>
         </tr>

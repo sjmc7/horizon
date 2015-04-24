@@ -171,6 +171,13 @@ limitations under the License.
         });
     };
 
+    this.deleteServers = function(serverIds) {
+      return apiService.delete('/api/nova/servers/', serverIds)
+        .error(function () {
+          horizon.alert('error', gettext('Unable to delete the servers.'));
+        });
+    };
+
     /**
      * @name hz.api.novaAPI.getServer
      * @description

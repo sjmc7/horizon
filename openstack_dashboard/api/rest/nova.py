@@ -259,6 +259,17 @@ class Servers(generic.View):
         LOG.debug("Returning %d results", len(instances))
         return [s.to_dict() for s in instances]
 
+    @rest_utils.ajax(data_required=True)
+    def delete(self, request):
+        """Delete multiple servers by id.
+
+        The DELETE data should be an application/json array of server ids to
+        delete.
+
+        This method returns HTTP 204 (no content) on success.
+        """
+        for server_id in request.DATA:
+            api.nova.server_delete(request, server_id)
 
 @urls.register
 class Server(generic.View):
@@ -274,6 +285,13 @@ class Server(generic.View):
         """
         return api.nova.server_get(request, server_id).to_dict()
 
+    @rest_utils.ajax()
+    def delete(self, request, server_id):
+        """Delete a single server by id.
+
+        This method returns HTTP 204 (no content) on success.
+        """
+        api.nova.server_delete(request, server_id)
 
 @urls.register
 class Extensions(generic.View):
