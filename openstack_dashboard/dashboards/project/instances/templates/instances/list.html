@@ -62,7 +62,7 @@
               hz-select="instance"
               ng-model='selected[instance.id].checked'/>
           </td>
-          <td class="rsp-p1">{$ instance.name $}</td>
+          <td class="rsp-p1"><a href="{$ instance.detailLink $}">{$ instance.name $}</a></td>
           <td class="rsp-p2">{$ instance.imageName $}</td>
           <td class="rsp-p2"><ip-address networks="instance.ipAddresses"></ip-address></td>
           <td class="rsp-p2">{$ instance.flavorName $}</td>

@@ -140,6 +140,7 @@
                                 firstAddress.floating[0];
                 }
 
+                instance.detailLink = '/project/instances/' + instance.id + '/';
                 instance.imageName = instance.image.name;
                 instance.flavorName = instance.full_flavor.name;
 
