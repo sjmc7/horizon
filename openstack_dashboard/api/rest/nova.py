@@ -19,6 +19,7 @@ import datetime
 from django.conf import settings
 from django.utils.datastructures import SortedDict
 from django.utils import http as utils_http
+from django.utils.translation import ugettext as _
 from django.views import generic
 import logging
 import six
@@ -270,6 +271,38 @@ class Servers(generic.View):
         """
         for server_id in request.DATA:
             api.nova.server_delete(request, server_id)
+
+@urls.register
+class ServerSearchFacets(generic.View):
+    """API for retrieving search facets. Somewhat experimental
+    """
+    url_regex = r'nova/server-search-facets/'
+
+    @rest_utils.ajax()
+    def get(self, request):
+        facets = [
+            {
+                'name': 'name',
+                'label': _('Name'),
+                'type': 'string',
+            },
+            {
+                'name': 'status',
+                'label': _('Status'),
+                'type': 'enumeration',
+                'options': [
+                    {'key': 'active', 'label': _('Active')},
+                    {'key': 'shutoff', 'label': _('Shutoff')},
+                    {'key': 'suspended', 'label': _('Suspended')},
+                    {'key': 'paused', 'label': _('Paused')},
+                    {'key': 'error', 'label': _('Error')},
+                    {'key': 'rescue', 'label': _('Rescue')},
+                    {'key': 'shelved', 'label': _('Shelved')},
+                    {'key': 'shelved_offloaded', 'label': _('Shelved Offloaded')}
+                ]
+            }
+        ]
+        return facets
 
 @urls.register
 class Server(generic.View):

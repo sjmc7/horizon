@@ -22,6 +22,10 @@ def _get_cis_url(request):
     return cis_url
 
 
+def cis_enabled(request):
+    return _get_cis_url(request) is not None
+
+
 def cis_wrapper(fn):
     """Assumes args[0] is a request object, otherwise
     this won't work. If fn.__name__ exists in this module
@@ -119,6 +123,14 @@ def server_list(request, search_opts=None, all_tenants=False):
 
     # Returns list, has_more
     return [fake_instance(**h['_source']) for h in elastic_results['hits']['hits']], False
+
+
+def server_search_facets(request):
+    cis_url = _get_cis_url(request) + '/mapping?type=nova'
+    return requests.get(
+        cis_url,
+        headers={'X-Auth-Token': request.user.token.id}
+    ).json()
 
 
 def image_list_detailed(request, marker=None, sort_dir='desc',
