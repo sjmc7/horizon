@@ -112,8 +112,6 @@ def server_list(request, search_opts=None, all_tenants=False):
 
     def fake_instance(**entries):
         instance = FakeInstance(**entries)
-        instance.flavor = {'id': instance.flavor_id}
-        instance.image = {'id': instance.image_id}
         instance.addresses = {}
         for net_name, ips in instance.networks.iteritems():
             instance.addresses[net_name] = [{'addr': ip} for ip in ips]
