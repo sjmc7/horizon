@@ -18,6 +18,7 @@
 import datetime
 from django.conf import settings
 from django.utils.datastructures import SortedDict
+from django.template import defaultfilters
 from django.utils import http as utils_http
 from django.utils.translation import ugettext as _
 from django.views import generic
@@ -281,31 +282,35 @@ class ServerSearchFacets(generic.View):
     @rest_utils.ajax()
     def get(self, request):
         if api.cis.cis_enabled(request):
-            return api.cis.server_search_facets(request)
+            facets = api.cis.server_search_facets(request)
+            for facet in facets:
+                facet['label'] = defaultfilters.title(facet['name'])
 
+        else:
+            facets = [
+                {
+                    'name': 'name',
+                    'label': _('Name'),
+                    'type': 'string',
+                },
+                {
+                    'name': 'status',
+                    'label': _('Status'),
+                    'type': 'enumeration',
+                    'options': [
+                        {'key': 'active', 'label': _('Active')},
+                        {'key': 'shutoff', 'label': _('Shutoff')},
+                        {'key': 'suspended', 'label': _('Suspended')},
+                        {'key': 'paused', 'label': _('Paused')},
+                        {'key': 'error', 'label': _('Error')},
+                        {'key': 'rescue', 'label': _('Rescue')},
+                        {'key': 'shelved', 'label': _('Shelved')},
+                        {'key': 'shelved_offloaded', 'label': _('Shelved Offloaded')}
+                    ]
+                }
+            ]
 
-        return [
-            {
-                'name': 'name',
-                'label': _('Name'),
-                'type': 'string',
-            },
-            {
-                'name': 'status',
-                'label': _('Status'),
-                'type': 'enumeration',
-                'options': [
-                    {'key': 'active', 'label': _('Active')},
-                    {'key': 'shutoff', 'label': _('Shutoff')},
-                    {'key': 'suspended', 'label': _('Suspended')},
-                    {'key': 'paused', 'label': _('Paused')},
-                    {'key': 'error', 'label': _('Error')},
-                    {'key': 'rescue', 'label': _('Rescue')},
-                    {'key': 'shelved', 'label': _('Shelved')},
-                    {'key': 'shelved_offloaded', 'label': _('Shelved Offloaded')}
-                ]
-            }
-        ]
+        return facets
 
 @urls.register
 class Server(generic.View):
