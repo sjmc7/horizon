@@ -280,7 +280,11 @@ class ServerSearchFacets(generic.View):
 
     @rest_utils.ajax()
     def get(self, request):
-        facets = [
+        if api.cis.cis_enabled(request):
+            return api.cis.server_search_facets(request)
+
+
+        return [
             {
                 'name': 'name',
                 'label': _('Name'),
@@ -302,7 +306,6 @@ class ServerSearchFacets(generic.View):
                 ]
             }
         ]
-        return facets
 
 @urls.register
 class Server(generic.View):

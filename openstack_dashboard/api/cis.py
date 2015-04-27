@@ -126,11 +126,11 @@ def server_list(request, search_opts=None, all_tenants=False):
 
 
 def server_search_facets(request):
-    cis_url = _get_cis_url(request) + '/mapping?type=nova'
+    cis_url = _get_cis_url(request) + '/search/facets?index=nova&type=instance'
     return requests.get(
         cis_url,
         headers={'X-Auth-Token': request.user.token.id}
-    ).json()
+    ).json()['nova']['instance']
 
 
 def image_list_detailed(request, marker=None, sort_dir='desc',
