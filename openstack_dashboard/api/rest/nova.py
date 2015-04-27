@@ -284,7 +284,9 @@ class ServerSearchFacets(generic.View):
         if api.cis.cis_enabled(request):
             facets = api.cis.server_search_facets(request)
             for facet in facets:
-                facet['label'] = defaultfilters.title(facet['name'])
+                facet['label'] = defaultfilters.title(facet['name']).replace('_', ' ')
+                for option in facet.get('options', []):
+                    option['label'] = defaultfilters.title(option['key'])
 
         else:
             facets = [
