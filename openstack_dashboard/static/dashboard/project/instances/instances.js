@@ -116,7 +116,7 @@
               horizon.alert('success', interpolate(successMsg, [ instanceNames ]));
 
               $interval(ctrl.update, 2000, 5);
-            })
+            });
         };
 
         ctrl.update = function(params) {

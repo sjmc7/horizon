@@ -21,6 +21,11 @@
     .item {
       a {
         color: $brand-danger;
+
+        &:hover {
+          text-decoration: none;
+          color: darken($brand-danger, 20%);
+        }
       }
     }
     .server-side-item {
@@ -33,14 +38,17 @@
     font-size: larger;
   }
 
-  .fa-times {
-    font-size: larger;
+  .fa-times, .fa-times-circle {
     cursor: pointer;
   }
 
   .label {
     font-size: 100%;
     font-weight: normal;
+  }
+
+  .fa-times-circle.cancel {
+    top: 0.6em;
   }
 }
 
