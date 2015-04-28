@@ -82,7 +82,8 @@
      * </magic-st-search>
      * ```
      */
-    .directive('magicStSearch', [ '$timeout', 'hzUtils', function($timeout, hzUtils) {
+    .directive('magicStSearch', [ '$window', '$timeout', 'hzUtils',
+      function($window, $timeout, hzUtils) {
       return {
         restrict: 'E',
         require: '^stTable',
@@ -91,35 +92,68 @@
 
           // Callback function to update table
           var update = angular.isDefined(attr.update) ? scope[attr.update] : undefined;
-          var timeoutPromise;
 
-          scope.$on('textSearch', function(event, text) {
-            // Apply some throttling
-            if (timeoutPromise) {
-              $timeout.cancel(timeoutPromise);
-            }
-            // Timeout needed to prevent
-            // $apply already in progress error
-            timeoutPromise = $timeout(function() {
-              tableCtrl.search(text);
-            }, 200);
-          });
-
-          // When user changes a facet, use API filter
-          scope.$on('searchUpdated', function(event, query) {
-            // update url
+          function updateInstances(query, params) {
             var url = window.location.href;
             if (url.indexOf('?') > -1) {
               url = url.split('?')[0];
             }
-            if (query.length > 0) {
+            if (query && query.length > 0) {
               url = url + '?' + query;
             }
             window.history.pushState(query, '', url);
 
             if (angular.isDefined(update)) {
-              update(hzUtils.deserialize(query));
+              update(params);
             }
+          }
+
+          scope.$on('textRemoved', function() {
+            var url = $window.location.href;
+            if (url.indexOf('?') > -1) {
+              var params = hzUtils.deserialize(url.split('?')[1]);
+              if (angular.isDefined(params.free)) {
+                delete params.free;
+              }
+              var query = hzUtils.serialize(params);
+
+              updateInstances(query, params);
+            }
+          });
+
+          scope.$on('textSearch', function(event, text, filterKeys) {
+            var searchValue = $('.search-input').val();
+            if (searchValue === '') {
+              var query, params;
+              var url = $window.location.href;
+              if (url.indexOf('?') > -1) {
+                params = hzUtils.deserialize(url.split('?')[1]);
+                if (text !== '') {
+                  params.free = text;
+                } else if (angular.isDefined(params.free)) {
+                  // delete params.free;
+                }
+                query = hzUtils.serialize(params);
+              } else if (text !== '') {
+                query = 'free=' + text;
+                params = { free: text };
+              }
+
+              updateInstances(query, params);
+            }
+          });
+
+          // When user changes a facet, use API filter
+          scope.$on('searchUpdated', function(event, query) {
+            var url = $window.location.href;
+            if (url.indexOf('?') > -1) {
+              var params = hzUtils.deserialize(url.split('?')[1]);
+              if (angular.isDefined(params.free)) {
+                query += '&free=' + params.free;
+              }
+            }
+
+            updateInstances(query, hzUtils.deserialize(query));
           });
         }
       };

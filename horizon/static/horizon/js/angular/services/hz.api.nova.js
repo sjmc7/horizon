@@ -166,7 +166,7 @@ limitations under the License.
       }
 
       return apiService.get('/api/nova/servers', config)
-        .error(function() {
+        .error(function () {
           horizon.alert('error', gettext('Unable to retrieve servers.'));
         });
     };
@@ -190,6 +190,10 @@ limitations under the License.
         .error(function () {
           horizon.alert('error', gettext('Unable to retrieve server.'));
       });
+    };
+
+    this.getFacets = function() {
+      return apiService.get('/api/nova/server-search-facets');
     };
 
     /**

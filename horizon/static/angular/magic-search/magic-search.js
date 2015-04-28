@@ -74,44 +74,53 @@
                 $scope.strings.prompt = '';
               });
             }
+
             angular.forEach(initialFacets, function(facet, idx) {
               var facetParts = facet.split('=');
-              angular.forEach($scope.facetsObj, function(value, idx) {
-                if (value.name == facetParts[0]) {
-                  if (value.options === undefined) {
-                    $scope.currentSearch.push({
-                      'name': facet,
-                      'label': [value.label, facetParts[1]]
-                    });
+              if (facetParts[0] === 'free') {
+                $scope.currentSearch.push({
+                  'name': 'text=' + facetParts[1],
+                  'label': [ $scope.strings.text, facetParts[1] ]
+                });
+              } else {
+                angular.forEach($scope.facetsObj, function(value, idx) {
+                  if (value.name == facetParts[0]) {
+                    if (value.options === undefined) {
+                      $scope.currentSearch.push({
+                        'name': facet,
+                        'label': [value.label, facetParts[1]]
+                      });
 
-                    // for refresh case, need to remove facets that were bookmarked/
-                    // current when broswer refresh was clicked
-                    $scope.deleteFacetEntirely(facetParts);
+                      // for refresh case, need to remove facets that were bookmarked/
+                      // current when broswer refresh was clicked
+                      $scope.deleteFacetEntirely(facetParts);
 
-                  } else {
-                    angular.forEach(value.options, function(option, idx) {
-                      if (option.key == facetParts[1]) {
-                        $scope.currentSearch.push({
-                          'name': facet,
-                          'label': [value.label, option.label]
-                        });
-                        if (value.singleton === true) {
-                          $scope.deleteFacetEntirely(facetParts);
-                        } else {
-                          $scope.deleteFacetSelection(facetParts);
+                    } else {
+                      angular.forEach(value.options, function(option, idx) {
+                        if (option.key == facetParts[1]) {
+                          $scope.currentSearch.push({
+                            'name': facet,
+                            'label': [value.label, option.label]
+                          });
+                          if (value.singleton === true) {
+                            $scope.deleteFacetEntirely(facetParts);
+                          } else {
+                            $scope.deleteFacetSelection(facetParts);
+                          }
                         }
-                      }
-                    });
+                      });
+                    }
                   }
-                }
-              });
+                });
+              }
             });
-            if ($scope.textSearch !== undefined) {
-              $scope.currentSearch.push({
-                'name': 'text=' + $scope.textSearch,
-                'label': [$scope.strings.text, $scope.textSearch]
-              });
-            }
+            // if ($scope.textSearch !== undefined) {
+            //   console.log('textSearch');
+            //   $scope.currentSearch.push({
+            //     'name': 'text=' + $scope.textSearch,
+            //     'label': [$scope.strings.text, $scope.textSearch]
+            //   });
+            // }
             $scope.filteredObj = $scope.facetsObj;
 
             // broadcast to check facets for serverside
@@ -125,7 +134,11 @@
             var removed = $scope.currentSearch[$index].name;
             $scope.currentSearch.splice($index, 1);
             if ($scope.facetSelected === undefined) {
-              $scope.emitQuery(removed);
+              if (removed.indexOf('text=') === 0) {
+                $scope.$emit('textRemoved');
+              } else {
+                $scope.emitQuery(removed);
+              }
             } else {
               $scope.resetState();
               $('.search-input').val('');

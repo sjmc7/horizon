@@ -26,6 +26,15 @@
           }, paramObj);
         return paramObj;
       },
+      serialize: function(paramObj) {
+        var params = [];
+        if (angular.isObject(paramObj)) {
+          angular.forEach(paramObj, function(value, key) {
+            params.push(key + '=' + value);
+          });
+        }
+        return params.join('&');
+      },
       /*
        Adds commas to any integer or numbers within a string for human display.
 

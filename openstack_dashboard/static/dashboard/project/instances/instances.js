@@ -63,8 +63,8 @@
      *
      */
     .controller('instancesCtrl',
-      [ '$interval', 'hzUtils', 'POWER_STATES', 'novaAPI',
-      function($interval, hzUtils, POWER_STATES, novaAPI) {
+      [ '$scope', '$timeout', 'hzUtils', 'POWER_STATES', 'novaAPI', 'simpleModalService',
+      function($scope, $timeout, hzUtils, POWER_STATES, novaAPI, modal) {
         var ctrl = this;
 
         ctrl.powerStateMap = POWER_STATES;
@@ -81,8 +81,32 @@
 
         ctrl.facets = [
           {
+            name: 'flavor',
+            label: gettext('Flavor')
+          },
+          {
+            name: 'host',
+            label: gettext('Host')
+          },
+          {
+            name: 'ipv4',
+            label: gettext('IPv4 Address'),
+            singleton: true
+          },
+          {
+            name: 'ipv6',
+            label: gettext('IPv6 Address'),
+            singleton: true
+          },
+          {
             name: 'name',
-            label: gettext('Name')
+            label: gettext('Name'),
+            singleton: true
+          },
+          {
+            name: 'project_id',
+            label: gettext('Project'),
+            singleton: true
           },
           {
             name: 'status',
@@ -109,28 +133,36 @@
             }
           });
 
-          novaAPI.deleteServers(serverIds)
-            .then(function() {
-              var instanceNames = instanceNameList.join(', ');
-              var successMsg = gettext('Deleted %s');
-              horizon.alert('success', interpolate(successMsg, [ instanceNames ]));
+          var instanceNames = instanceNameList.join(', ');
+          var msg = gettext('You have selected %s. Please confirm your selection. Terminated instances are not recoverable.');
+          var options = {
+            title: gettext('Confirm Terminate Instances'),
+            body: interpolate(msg, [ instanceNames ])
+          };
 
-              $interval(ctrl.update, 2000, 5);
-            });
+          modal(options).result.then(function() {
+            novaAPI.deleteServers(serverIds)
+              .then(function() {
+                var successMsg = gettext('Deleted %s');
+                horizon.alert('success', interpolate(successMsg, [ instanceNames ]));
+
+                ctrl.update();
+              });
+          });
         };
 
         ctrl.update = function(params) {
+          if (angular.isDefined(ctrl.updateTimer)) {
+            $timeout.cancel(ctrl.updateTimer);
+          }
+
           // If params is empty, grab query from URL
-          if (!params) {
+          if (!angular.isDefined(params) || !angular.isObject(params)) {
             var url = window.location.href;
             if (url.indexOf('?') > -1) {
               var query = url.split('?')[1];
               params = hzUtils.deserialize(query);
             }
-          }
-
-          if (params && params.name) {
-            params.name = params.name + '*';
           }
 
           novaAPI.getServers(params)
@@ -170,12 +202,26 @@
 
                 return instance;
               });
+
+              ctrl.updateTimer = $timeout(ctrl.update, 8000, false);
             });
         };
 
-        ctrl.update();
+        ctrl.updateFacets = function() {
+          novaAPI.getFacets()
+            .catch(function(err) {
+              // do nothing for now
+            })
+            .then(function(response) {
+              ctrl.facets = response.data;
+              $scope.$broadcast('facetsChanged');
 
-        $interval(ctrl.update, 5000, 2);
+              // TODO: Translation???
+            });
+        };
+
+        ctrl.updateFacets();
+        ctrl.update();
       }
     ]);
 
