@@ -85,7 +85,12 @@
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="100">Displayed {$ ctrl.displayedInstances.length $} items</td>
+          <td colspan="100">
+            <span class="display">{$ ctrl.displayedInstances.length | itemCount $}</span>
+            <div class="text-center"
+              st-pagination st-items-by-page="ctrl.pageOpts.limit"
+              st-displayed-pages="ctrl.pageOpts.cnt"></div>
+          </td>
         </tr>
       </tfoot>
     </table>

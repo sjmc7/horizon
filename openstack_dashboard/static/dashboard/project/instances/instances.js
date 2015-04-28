@@ -67,6 +67,11 @@
       function($scope, $timeout, hzUtils, POWER_STATES, novaAPI, modal) {
         var ctrl = this;
 
+        ctrl.pageOpts = {
+          offset: 0,
+          limit: 5,
+          cnt: 1
+        };
         ctrl.powerStateMap = POWER_STATES;
 
         ctrl.instances = [];
@@ -203,6 +208,8 @@
                 return instance;
               });
 
+              var resultsCount = ctrl.instances.length;
+              ctrl.pageOpts.cnt = Math.ceil(resultsCount / ctrl.pageOpts.limit);
               ctrl.updateTimer = $timeout(ctrl.update, 8000, false);
             });
         };

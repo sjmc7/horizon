@@ -156,8 +156,13 @@ limitations under the License.
      * @param {object} searchOpts Specifies the search parameters
      * @return {array} List of servers
      */
-    this.getServers = function(searchOpts) {
+    this.getServers = function(searchOpts, pageOpts) {
       var config = { params: {} };
+      // pagination options
+      if (pageOpts && angular.isObject(pageOpts)) {
+        angular.extend(config.params, pageOpts);
+      }
+      // search terms
       if (searchOpts) {
         angular.forEach(searchOpts, function(value, key) {
           var filterKey = 'filter.' + key;

@@ -103,8 +103,8 @@ def server_list(request, search_opts=None, all_tenants=False):
         request_body['sort'] = search_opts['sort']
     if 'offset' in search_opts:
         request_body['offset'] = search_opts['offset']
-    if 'size' in search_opts:
-        request_body['size'] = search_opts['size']
+    if 'limit' in search_opts:
+        request_body['limit'] = search_opts['limit']
 
     elastic_results = requests.post(
         cis_url,
