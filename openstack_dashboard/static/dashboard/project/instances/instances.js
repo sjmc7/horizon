@@ -76,7 +76,7 @@
           cancel: gettext('Cancel'),
           prompt: gettext('Click here for menu to filter instances'),
           remove: gettext('Remove'),
-          text: gettext('In filtered instances')
+          text: gettext('All')
         };
 
         ctrl.facets = [
