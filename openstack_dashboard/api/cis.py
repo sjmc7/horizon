@@ -133,8 +133,8 @@ def server_list(request, search_opts=None, all_tenants=False):
     def fake_instance(**entries):
         instance = FakeInstance(**entries)
         instance.addresses = {}
-        for net_name, ips in instance.networks.iteritems():
-            instance.addresses[net_name] = [{'addr': ip} for ip in ips]
+        for net_ip in instance.networks:
+            instance.addresses[net_ip['name']] = [{'addr': ip} for ip in net_ip['ipv4']]
         return instance
 
     # Returns list, has_more
