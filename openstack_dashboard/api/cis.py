@@ -78,12 +78,24 @@ def server_list(request, search_opts=None, all_tenants=False):
     for field, term in search_opts.get('query', []):
         if field == 'free':
             search_terms.append({'query_string': {'query': term}})
-        elif '~' in term:
-            search_terms.append({'query_string': {'fields': [field], 'query': term}})
-        elif '*' in term or '?' in term:
-            search_terms.append({'wildcard': {field: term}})
         else:
-            search_terms.append({'term': {field: term}})
+            if '~' in term:
+                next_term = {'query_string': {'fields': [field], 'query': term}}
+            elif '*' in term or '?' in term:
+                next_term = {'wildcard': {field: term}}
+            else:
+                next_term = {'term': {field: term}}
+
+            if '.' in field:
+                # Nested!
+                search_terms.append({
+                    "nested": {
+                        "path": field.split('.')[0],
+                        "query": next_term
+                    }
+                })
+            else:
+                search_terms.append(next_term)
 
     if search_terms:
         query = {
