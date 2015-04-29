@@ -23,6 +23,7 @@ from django.utils import http as utils_http
 from django.utils.translation import ugettext as _
 from django.views import generic
 import logging
+from operator import itemgetter
 import six
 
 from openstack_dashboard import api
@@ -286,9 +287,9 @@ class ServerSearchFacets(generic.View):
     @rest_utils.ajax()
     def get(self, request):
         if api.cis.cis_enabled(request):
-            facets = api.cis.server_search_facets(request)
+            facets = sorted(api.cis.server_search_facets(request), key=itemgetter('name'))
             for facet in facets:
-                facet['label'] = defaultfilters.title(facet['name']).replace('_', ' ')
+                facet['label'] = defaultfilters.title(facet['name']).replace('_', ' ').replace('.', ' - ')
                 for option in facet.get('options', []):
                     option['label'] = defaultfilters.title(option['key'])
 
