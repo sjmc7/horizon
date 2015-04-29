@@ -203,12 +203,10 @@ class Servers(generic.View):
         profile_log("Requesting nova instance list")
 
         search_opts = {}
-        if 'sort' in request.GET:
-            search_opts['sort'] = request.GET['sort']
-        if 'offset' in request.GET:
-            search_opts['offset'] = request.GET['offset']
-        if 'limit' in request.GET:
-            search_opts['limit'] = request.GET['limit']
+        for field in ('sort', 'offset', 'limit', 'fields'):
+            if field in request.GET:
+                search_opts[field] = request.GET[field]
+
         for k, v in six.iteritems(request.GET):
             if k.startswith('filter.'):
                 search_opts.setdefault('query', []).append((k[7:], v))

@@ -117,13 +117,15 @@ def server_list(request, search_opts=None, all_tenants=False):
         request_body['offset'] = search_opts['offset']
     if 'limit' in search_opts:
         request_body['limit'] = search_opts['limit']
+    if 'fields' in search_opts:
+        request_body['fields'] = search_opts['fields'].split(',')
 
     elastic_results = requests.post(
         cis_url,
         data=json.dumps(request_body),
         headers={'X-Auth-Token': request.user.token.id}
     ).json()
-    LOG.warning("%s %s", query, elastic_results)
+    LOG.warning("%s %s", request_body, elastic_results)
 
     class FakeInstance(ObjFromDict):
         @property
