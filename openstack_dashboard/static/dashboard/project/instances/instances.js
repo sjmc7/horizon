@@ -51,6 +51,7 @@
         },
         templateUrl: path + 'project/instances/ip_address.html',
         controller: [ '$scope', function($scope) {
+          $scope.numNetworks = $scope.networks ? Object.keys($scope.networks).length : 0;
           $scope.floatingLabel = gettext('Floating IPs');
         }]
       };
@@ -68,9 +69,10 @@
         var ctrl = this;
 
         ctrl.pageOpts = {
-          offset: 0,
-          limit: 5,
-          cnt: 1
+          cnt: 1,
+          fields: 'id,name,image,flavor,networks,availability_zone,status,key_name,OS-EXT-STS:power_state,OS-EXT-STS:task_state,created',
+          limit: 100,
+          offset: 0
         };
         ctrl.powerStateMap = POWER_STATES;
 
@@ -129,7 +131,15 @@
           }
         ];
 
-        ctrl.terminateInstances = function(selected) {
+        var editActions = {
+          reboot: gettext('Rebooted %s'),
+          start: gettext('Started %s'),
+          stop: gettext('Stopped %s'),
+          pause: gettext('Paused %s'),
+          unpause: gettext('Unpaused %s')
+        };
+
+        function collectInstanceIds(selected) {
           var serverIds = [], instanceNameList = [];
           angular.forEach(selected, function(selection, id) {
             if (selection.checked) {
@@ -138,7 +148,52 @@
             }
           });
 
-          var instanceNames = instanceNameList.join(', ');
+          return {
+            ids: serverIds,
+            names: instanceNameList
+          };
+        }
+
+        function editInstance(action, instance, extraParams) {
+          var params = extraParams || {};
+          if (!angular.isDefined(params[action])) {
+            params[action] = true;
+          }
+
+          novaAPI.editServer(instance.id, params)
+            .then(function() {
+              var successMsg = editActions[action] || gettext('Edited %s');
+              horizon.alert('success', interpolate(successMsg, [ instance.name ]));
+
+              ctrl.update();
+            });
+        }
+
+        ctrl.softRebootInstance = function(instance) {
+          editInstance('reboot', instance, { reboot: true });
+        };
+
+        ctrl.startInstance = function(instance) {
+          editInstance('start', instance);
+        };
+
+        ctrl.stopInstance = function(instance) {
+          editInstance('stop', instance);
+        };
+
+        ctrl.terminateInstance = function(instance) {
+          novaAPI.deleteServer(instance.id)
+              .then(function() {
+                var successMsg = gettext('Terminated %s');
+                horizon.alert('success', interpolate(successMsg, [ instance.name ]));
+
+                ctrl.update();
+              });
+        };
+
+        ctrl.terminateInstances = function(selected) {
+          var instances = collectInstanceIds(selected);
+          var instanceNames = instances.names.join(', ');
           var msg = gettext('You have selected %s. Please confirm your selection. Terminated instances are not recoverable.');
           var options = {
             title: gettext('Confirm Terminate Instances'),
@@ -146,9 +201,9 @@
           };
 
           modal(options).result.then(function() {
-            novaAPI.deleteServers(serverIds)
+            novaAPI.deleteServers(instances.ids)
               .then(function() {
-                var successMsg = gettext('Deleted %s');
+                var successMsg = gettext('Terminated %s');
                 horizon.alert('success', interpolate(successMsg, [ instanceNames ]));
 
                 ctrl.update();
@@ -170,47 +225,42 @@
             }
           }
 
-          novaAPI.getServers(params)
+          novaAPI.getServers(params, ctrl.pageOpts)
             .then(function(response) {
               ctrl.instances = response.data.map(function(instance) {
-                var addresses = [],
-                  input = instance.addresses,
-                  networks = Object.keys(input);
-
-                angular.forEach(networks, function(name) {
-                  var network = { name: name, fixed: [], floating: [] };
-
-                  input[name].reduce(function(prev, curr) {
-                    prev[curr['OS-EXT-IPS:type']].push(curr.addr);
-                    return prev;
-                  }, network);
-
-                  addresses.push(network);
+                var networkIps = {};
+                angular.forEach(instance.addresses, function(ips, networkName) {
+                  var addresses = { fixed: [], floating: [] };
+                  ips.reduce(function(prev, curr) {
+                    prev[curr['OS-EXT-IPS:type']].push(curr);
+                  }, addresses);
+                  networkIps[networkName] = addresses;
                 });
-                instance.ipAddresses = addresses;
-
-                if (addresses.length) {
-                  var firstAddress = addresses[0];
-                  instance.ip = firstAddress.fixed.length ?
-                                firstAddress.fixed[0] :
-                                firstAddress.floating[0];
-                }
+                instance.networkIps = networkIps;
+                delete instance.addresses;
+                delete instance.networks;
 
                 instance.detailLink = '/project/instances/' + instance.id + '/';
                 instance.imageName = instance.image.name;
-                instance.flavorName = instance.full_flavor.name;
+                instance.flavorName = instance.flavor.name;
 
                 instance.task_state = instance['OS-EXT-STS:task_state'] || gettext('None');
                 instance.power_state = instance['OS-EXT-STS:power_state'];
                 delete instance['OS-EXT-STS:task_state'];
                 delete instance['OS-EXT-STS:power_state'];
 
+                instance.startAllowed = instance.power_state > 3 && instance.power_state < 7;
+                instance.stopAllowed = instance.power_state === 1 || instance.power_state === 7 || instance.task_state.toLowerCase() === 'deleting';
+
                 return instance;
               });
 
               var resultsCount = ctrl.instances.length;
               ctrl.pageOpts.cnt = Math.ceil(resultsCount / ctrl.pageOpts.limit);
-              ctrl.updateTimer = $timeout(ctrl.update, 8000, false);
+              ctrl.updateTimer = $timeout(ctrl.update, 5000, false);
+
+              // refetch facets
+              ctrl.updateFacets();
             });
         };
 

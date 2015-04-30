@@ -55,6 +55,7 @@
           <th st-sort="task_state" class="rsp-p1">{% trans "Task" %}</th>
           <th st-sort="power_state" class="rsp-p3">{% trans "Power State" %}</th>
           <th st-sort="created" class="rsp-p3">{% trans "Created" %}</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -73,7 +74,7 @@
           </td>
           <td class="rsp-p1"><a href="{$ instance.detailLink $}">{$ instance.name $}</a></td>
           <td class="rsp-p2">{$ instance.imageName $}</td>
-          <td class="rsp-p2"><ip-address networks="instance.ipAddresses"></ip-address></td>
+          <td class="rsp-p2"><ip-address networks="instance.networkIps"></ip-address></td>
           <td class="rsp-p2">{$ instance.flavorName $}</td>
           <td class="rsp-p3">{$ instance.key_name $}</td>
           <td class="rsp-p1">{$ instance.status | title $}</td>
@@ -81,6 +82,34 @@
           <td class="rsp-p1">{$ instance.task_state | title $}</td>
           <td class="rsp-p3">{$ instance.power_state | decode:ctrl.powerStateMap $}</td>
           <td class="rsp-p3"><time am-time-ago="instance.created"></time></td>
+          <td>
+            <action-list class="btn-group-sm" dropdown>
+              <action button-type="split-button" action-classes="'btn btn-default'"
+                callback="ctrl.softRebootInstance"
+                item="instance">
+                {% trans "Soft Reboot" %}
+              </action>
+              <menu>
+                <action button-type="menu-item"
+                  callback="ctrl.startInstance"
+                  item="instance"
+                  disabled="!instance.startAllowed">
+                  {% trans "Start" %}
+                </action>
+                <action button-type="menu-item"
+                  callback="ctrl.stopInstance"
+                  item="instance"
+                  disabled="!instance.stopAllowed">
+                  {% trans "Stop" %}
+                </action>
+                <action button-type="menu-item"
+                  callback="ctrl.terminateInstance"
+                  item="instance">
+                  {% trans "Terminate" %}
+                </action>
+              </menu>
+            <action-list>
+          </td>
         </tr>
       </tbody>
       <tfoot>
@@ -88,8 +117,8 @@
           <td colspan="100">
             <span class="display">{$ ctrl.displayedInstances.length | itemCount $}</span>
             <div class="text-center"
-              st-pagination st-items-by-page="ctrl.pageOpts.limit"
-              st-displayed-pages="ctrl.pageOpts.cnt"></div>
+              st-pagination st-items-by-page="5"
+              st-displayed-pages="10"></div>
           </td>
         </tr>
       </tfoot>

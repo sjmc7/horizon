@@ -339,6 +339,34 @@ class Server(generic.View):
         """
         api.nova.server_delete(request, server_id)
 
+
+    @rest_utils.ajax(data_required=True)
+    def patch(self, request, server_id):
+        """Update a single server.
+
+        The PATCH data should be an application/json object with attributes to
+        set to new values: reboot (boolean), start, stop, lock, unlock.
+
+        This method returns HTTP 204 (no content) on success.
+        """
+        keys = tuple(request.DATA)
+
+        if 'reboot' in keys:
+            soft_reboot = request.DATA['reboot']
+            api.nova.server_reboot(request, server_id, soft_reboot)
+
+        elif 'start' in keys:
+            api.nova.server_start(request, server_id)
+
+        elif 'stop' in keys:
+            api.nova.server_stop(request, server_id)
+
+        elif 'pause' in keys:
+            api.nova.server_pause(request, server_id)
+
+        elif 'unpause' in keys:
+            api.nova.server_unpause(request, server_id)
+
 @urls.register
 class Extensions(generic.View):
     """API for nova extensions.

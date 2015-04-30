@@ -170,12 +170,15 @@ limitations under the License.
         });
       }
 
-      return apiService.get('/api/nova/servers', config)
-        .error(function () {
-          horizon.alert('error', gettext('Unable to retrieve servers.'));
-        });
+      return apiService.get('/api/nova/servers', config);
     };
 
+    /**
+     * @name hz.api.novaAPI.deleteServers
+     * @description
+     * Delete servers matching server IDs
+     * @param {array} serverIds IDs of servers to delete
+     */
     this.deleteServers = function(serverIds) {
       return apiService.delete('/api/nova/servers/', serverIds)
         .error(function () {
@@ -187,8 +190,8 @@ limitations under the License.
      * @name hz.api.novaAPI.getServer
      * @description
      * Get a single server by ID
-     * @param {string} id
-     * Specifies the id of the server to request.
+     * @param {string} id The id of the server to request.
+     * @return {object} Server requested
      */
     this.getServer = function(id) {
       return apiService.get('/api/nova/servers/' + id)
@@ -197,6 +200,33 @@ limitations under the License.
       });
     };
 
+    /**
+     * @name hz.api.novaAPI.deleteServer
+     * @description
+     * Delete a server
+     * @param {string} id The ID of server to delete
+     */
+    this.deleteServer = function(id) {
+      return apiService.delete('/api/nova/servers/' + id);
+    };
+
+    /**
+     * @name hz.api.novaAPI.editServer
+     * @description
+     * Edit the server
+     * @param {string} id The ID of the server to edit
+     */
+    this.editServer = function(id, params) {
+      var url = '/api/nova/servers/' + id;
+      return apiService.patch(url, params);
+    };
+
+    /**
+     * @name hz.api.novaAPI.getFacets
+     * @description
+     * Get available facets
+     * @return {array} Facets and facet options
+     */
     this.getFacets = function() {
       return apiService.get('/api/nova/server-search-facets');
     };
