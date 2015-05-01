@@ -6,7 +6,7 @@
 	  <ul class="list-group" style="max-height: 300px; overflow-y: auto;">
 	    <li ng-repeat="(clientKey, field) in ctrl.fields"
 	  	  class="list-group-item" >
-		    <input type="checkbox" ng-model="field.show" ng-disabled="field.required"/> {$ field.label $}
+		    <input type="checkbox" ng-model="field.show"> {$ field.label $}
 	    </li>
 	  </ul>
 	</div>
