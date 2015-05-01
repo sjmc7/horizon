@@ -70,7 +70,7 @@
 
         ctrl.pageOpts = {
           cnt: 1,
-          fields: 'id,name,image,flavor,networks,availability_zone,status,key_name,OS-EXT-STS:power_state,OS-EXT-STS:task_state,created',
+          fields: 'id,host,name,image,flavor,networks,availability_zone,status,key_name,OS-EXT-STS:power_state,OS-EXT-STS:task_state,created',
           limit: 100,
           offset: 0
         };
