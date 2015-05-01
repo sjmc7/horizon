@@ -1,7 +1,9 @@
 (function() {
   'use strict';
 
-  angular.module('hz.dashboard.project.instances', [ 'hz.api', 'smart-table', 'MagicSearch', 'angularMoment' ])
+  angular.module('hz.dashboard.project.instances',
+    [ 'hz.api', 'smart-table', 'MagicSearch', 'angularMoment', 'ui.bootstrap' ]
+  )
 
     /**
      * @ngdoc constant
@@ -51,7 +53,6 @@
         },
         templateUrl: path + 'project/instances/ip_address.html',
         controller: [ '$scope', function($scope) {
-          $scope.numNetworks = $scope.networks ? Object.keys($scope.networks).length : 0;
           $scope.floatingLabel = gettext('Floating IPs');
         }]
       };
@@ -64,13 +65,47 @@
      *
      */
     .controller('instancesCtrl',
-      [ '$scope', '$timeout', 'hzUtils', 'POWER_STATES', 'novaAPI', 'simpleModalService',
-      function($scope, $timeout, hzUtils, POWER_STATES, novaAPI, modal) {
+      [ 'dashboardBasePath', '$scope', '$timeout', 'hzUtils', 'POWER_STATES', 'novaAPI', 'simpleModalService', '$modal',
+      function(path, $scope, $timeout, hzUtils, POWER_STATES, novaAPI, modal, $modal) {
         var ctrl = this;
+        
+        ctrl.configureLabel = gettext('Configure Columns');
+        
+        ctrl.fields = {
+          id: { key: 'id', label: gettext('ID'), show: true, required: true },
+          name: { key: 'name', label: gettext('Name'), show: true, required: true },
+          imageName: { key: 'image', label: gettext('Image'), show: true, required: false },
+          ip: { key: 'networks', label: gettext('Networks'), show: true, required: true },
+          flavorName: { key: 'flavor', label: gettext('Flavor'), show: true, required: true },
+          key_name: { key: 'key_name', label: gettext('Key Pair'), show: true, required: false },
+          status: { key: 'status', label: gettext('Status'), show: true, required: false },
+          availability_zone: { key: 'availability_zone', label: gettext('Availability Zone'), show: true, required: false },
+          task_state: { key: 'OS-EXT-STS:task_state', label: gettext('Task'), show: true, required: true },
+          power_state: { key: 'OS-EXT-STS:power_state', label: gettext('Power State'), show: true, required: true },
+          created: { key: 'created', label: gettext('Time Since Created'), show: true, required: false },
+          host: { key: 'host', label: gettext('Host'), show: false, required: true },
+          owner: { key: 'owner', label: gettext('Owner'), show: false, required: false },
+          updated: { key: 'updated', label: gettext('Updated'), show: false, required: false },
+          user_id: { key: 'user_id', label: gettext('User ID'), show: false, required: false }
+        };
+        
+        ctrl.columns = [];
+        
+        $scope.$watch(function() {
+          return ctrl.fields;
+        }, function(newValue, oldValue) {
+          ctrl.columns.length = 0;
+          angular.forEach(ctrl.fields, function(field, clientKey) {
+            if (field.show || field.required) {
+              ctrl.columns.push(field.key);
+            }
+          });
+          ctrl.pageOpts.fields = ctrl.columns.join(',');
+        }, true);
 
         ctrl.pageOpts = {
           cnt: 1,
-          fields: 'id,host,name,image,flavor,networks,availability_zone,status,key_name,OS-EXT-STS:power_state,OS-EXT-STS:task_state,created',
+          fields: ctrl.columns.join(','),
           limit: 100,
           offset: 0
         };
@@ -228,20 +263,32 @@
           novaAPI.getServers(params, ctrl.pageOpts)
             .then(function(response) {
               ctrl.instances = response.data.map(function(instance) {
-                var networkIps = {};
-                angular.forEach(instance.addresses, function(ips, networkName) {
-                  var addresses = { fixed: [], floating: [] };
-                  ips.reduce(function(prev, curr) {
-                    prev[curr['OS-EXT-IPS:type']].push(curr);
-                  }, addresses);
-                  networkIps[networkName] = addresses;
-                });
-                instance.networkIps = networkIps;
-                delete instance.addresses;
-                delete instance.networks;
+                if (angular.isDefined(instance.addresses)) {
+                  var networkIps = [];
+                  angular.forEach(instance.addresses, function(ips, networkName) {
+                    var network = { name: networkName, fixed: [], floating: [] };
+                    ips.reduce(function(prev, curr) {
+                      prev[curr['OS-EXT-IPS:type']].push(curr);
+                      return prev;
+                    }, network);
+                    networkIps.push(network);
+                  });
+                  networkIps.sort(function(a, b) { return a.name.localeCompare(b.name); });
+  
+                  instance.networkIps = networkIps;
+                  if (networkIps.length > 0) {
+                    instance.ip = networkIps[0].fixed.length ?
+                                  networkIps[0].fixed[0].addr :
+                                  networkIps[0].floating[0].addr;
+                  }
+                  delete instance.addresses;
+                  delete instance.networks;
+                }
 
                 instance.detailLink = '/project/instances/' + instance.id + '/';
-                instance.imageName = instance.image.name;
+                if (angular.isDefined(instance.image)) {
+                  instance.imageName = instance.image.name;
+                }
                 instance.flavorName = instance.flavor.name;
 
                 instance.task_state = instance['OS-EXT-STS:task_state'] || gettext('None');
@@ -277,6 +324,16 @@
             });
         };
 
+        ctrl.showSettings = function() {
+          var options = {
+            scope: $scope,
+            size: 'sm',
+            templateUrl: path + 'project/instances/settings.html'
+          };
+
+          $modal.open(options);
+        };
+        
         ctrl.updateFacets();
         ctrl.update();
       }

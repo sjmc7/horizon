@@ -1,5 +1,5 @@
-<network ng-repeat="(networkName, network) in networks track by networkName">
-  <h4 ng-if="numNetworks > 1" style="margin-bottom: 0.2em; margin-top: 0; font-size: 14px;">{$ networkName $}</h4>
+<network ng-repeat="network in networks track by network.name">
+  <h4 ng-if="networks.length > 1" style="margin-bottom: 0.2em; margin-top: 0; font-size: 14px;">{$ network.name $}</h4>
   <dl style="margin-bottom: 0;">
     <dd ng-repeat="fixedAddr in network.fixed">{$ fixedAddr.addr $}</dd>
     <floating-ip ng-if="network.floating.length">

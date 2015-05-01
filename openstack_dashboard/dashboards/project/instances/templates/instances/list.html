@@ -11,7 +11,9 @@
     <table hz-table ng-cloak
       st-table="ctrl.displayedInstances"
       st-safe-src="ctrl.instances"
-      class="table-striped table-rsp modern">
+      default-sort="created"
+      default-sort-reverse="true"
+      class="table table-striped table-rsp modern">
       <thead>
         <tr>
           <th class="search-header" colspan="100">
@@ -37,6 +39,12 @@
                   {% trans 'Terminate Instances' %}
                 </action>
               </action-list>
+              <action-list class="btn-addon">
+                <action action-classes="'btn btn-default'"
+                  callback="ctrl.showSettings">
+                  <span class="fa fa-cog fa-lg"></span>
+                </action>
+              </action-list>
             </magic-search-bar>
           </th>
         </tr>
@@ -45,16 +53,20 @@
             <input type="checkbox"
               hz-select-all="ctrl.displayedInstances"/>
           </th>
-          <th st-sort="name" class="rsp-p1">{% trans "Instance Name" %}</th>
-          <th st-sort="imageName" class="rsp-p2">{% trans "Image Name" %}</th>
-          <th st-sort="ip" class="rsp-p2">{% trans "IP Address" %}</th>
-          <th st-sort="flavorName" class="rsp-p2">{% trans "Size" %}</th>
-          <th st-sort="key_name" class="rsp-p3">{% trans "Key Pair" %}</th>
-          <th st-sort="status" class="rsp-p1">{% trans "Status" %}</th>
-          <th st-sort="availability_zone" class="rsp-p2">{% trans "Availability Zone" %}</th>
-          <th st-sort="task_state" class="rsp-p1">{% trans "Task" %}</th>
-          <th st-sort="power_state" class="rsp-p3">{% trans "Power State" %}</th>
-          <th st-sort="created" class="rsp-p3">{% trans "Created" %}</th>
+          <th st-sort="name" class="rsp-p1" ng-if="ctrl.fields.name.show || ctrl.fields.name.required">{% trans "Instance Name" %}</th>
+          <th st-sort="imageName" class="rsp-p2" ng-if="ctrl.fields.imageName.show || ctrl.fields.imageName.required">{% trans "Image Name" %}</th>
+          <th st-sort="ip" class="rsp-p2" ng-if="ctrl.fields.ip.show || ctrl.fields.ip.required">{% trans "Networks" %}</th>
+          <th st-sort="flavorName" class="rsp-p2" ng-if="ctrl.fields.flavorName.show || ctrl.fields.flavorName.required">{% trans "Flavor" %}</th>
+          <th st-sort="key_name" class="rsp-p3" ng-if="ctrl.fields.key_name.show || ctrl.fields.key_name.required">{% trans "Key Pair" %}</th>
+          <th st-sort="status" class="rsp-p1" ng-if="ctrl.fields.status.show || ctrl.fields.status.required">{% trans "Status" %}</th>
+          <th st-sort="availability_zone" class="rsp-p2" ng-if="ctrl.fields.availability_zone.show || ctrl.fields.availability_zone.required">{% trans "Availability Zone" %}</th>
+          <th st-sort="task_state" class="rsp-p1" ng-if="ctrl.fields.task_state.show || ctrl.fields.task_state.required">{% trans "Task" %}</th>
+          <th st-sort="power_state" class="rsp-p3" ng-if="ctrl.fields.power_state.show || ctrl.fields.power_state.required">{% trans "Power State" %}</th>
+          <th st-sort="created" class="rsp-p3" ng-if="ctrl.fields.created.show || ctrl.fields.created.required">{% trans "Created" %}</th>
+          <th st-sort="host" class="rsp-p3" ng-if="ctrl.fields.host.show || ctrl.fields.host.required">{% trans "Host" %}</th>
+          <th st-sort="owner" class="rsp-p3" ng-if="ctrl.fields.owner.show || ctrl.fields.owner.required">{% trans "Owner" %}</th>
+          <th st-sort="updated" class="rsp-p3" ng-if="ctrl.fields.updated.show || ctrl.fields.updated.required">{% trans "Updated" %}</th>
+          <th st-sort="user_id" class="rsp-p3" ng-if="ctrl.fields.user_id.show || ctrl.fields.user_id.required">{% trans "User ID" %}</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -66,22 +78,27 @@
             </div>
           </td>
         </tr>
-        <tr ng-repeat="instance in ctrl.displayedInstances">
+        <tr ng-repeat="instance in ctrl.displayedInstances"
+          ng-class="{ warning: (instance.task_state !== 'None'), danger: (instance.status === 'error') }">
           <td>
             <input type="checkbox"
               hz-select="instance"
               ng-model='selected[instance.id].checked'/>
           </td>
-          <td class="rsp-p1"><a href="{$ instance.detailLink $}">{$ instance.name $}</a></td>
-          <td class="rsp-p2">{$ instance.imageName $}</td>
-          <td class="rsp-p2"><ip-address networks="instance.networkIps"></ip-address></td>
-          <td class="rsp-p2">{$ instance.flavorName $}</td>
-          <td class="rsp-p3">{$ instance.key_name $}</td>
-          <td class="rsp-p1">{$ instance.status | title $}</td>
-          <td class="rsp-p2">{$ instance.availability_zone $}</td>
-          <td class="rsp-p1">{$ instance.task_state | title $}</td>
-          <td class="rsp-p3">{$ instance.power_state | decode:ctrl.powerStateMap $}</td>
-          <td class="rsp-p3"><time am-time-ago="instance.created"></time></td>
+          <td class="rsp-p1" ng-if="ctrl.fields.name.show || ctrl.fields.name.required"><a href="{$ instance.detailLink $}">{$ instance.name $}</a></td>
+          <td class="rsp-p2" ng-if="ctrl.fields.imageName.show || ctrl.fields.imageName.required">{$ instance.imageName $}</td>
+          <td class="rsp-p2" ng-if="ctrl.fields.ip.show || ctrl.fields.ip.required"><ip-address networks="instance.networkIps"></ip-address></td>
+          <td class="rsp-p2" ng-if="ctrl.fields.flavorName.show || ctrl.fields.flavorName.required">{$ instance.flavorName $}</td>
+          <td class="rsp-p3" ng-if="ctrl.fields.key_name.show || ctrl.fields.key_name.required">{$ instance.key_name $}</td>
+          <td class="rsp-p1" ng-if="ctrl.fields.status.show || ctrl.fields.status.required">{$ instance.status | title $}</td>
+          <td class="rsp-p2" ng-if="ctrl.fields.availability_zone.show || ctrl.fields.availability_zone.required">{$ instance.availability_zone $}</td>
+          <td class="rsp-p1" ng-if="ctrl.fields.task_state.show || ctrl.fields.task_state.required">{$ instance.task_state | title $}</td>
+          <td class="rsp-p3" ng-if="ctrl.fields.power_state.show || ctrl.fields.power_state.required">{$ instance.power_state | decode:ctrl.powerStateMap $}</td>
+          <td class="rsp-p3" ng-if="ctrl.fields.created.show || ctrl.fields.created.required"><time am-time-ago="instance.created"></time></td>
+          <td class="rsp-p3" ng-if="ctrl.fields.host.show || ctrl.fields.host.required">{$ instance.host $}</td>
+          <td class="rsp-p3" ng-if="ctrl.fields.owner.show || ctrl.fields.owner.required">{$ instance.owner $}</td>
+          <td class="rsp-p3" ng-if="ctrl.fields.updated.show || ctrl.fields.updated.required">{$ instance.updated | date:short $}</td>
+          <td class="rsp-p3" ng-if="ctrl.fields.user_id.show || ctrl.fields.user_id.required">{$ instance.user_id $}</td>
           <td>
             <action-list class="btn-group-sm" dropdown>
               <action button-type="split-button" action-classes="'btn btn-default'"
