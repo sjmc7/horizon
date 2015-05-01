@@ -97,7 +97,7 @@
           <td class="rsp-p3" ng-if="ctrl.fields.created.show"><time am-time-ago="instance.created"></time></td>
           <td class="rsp-p3" ng-if="ctrl.fields.host.show">{$ instance.host $}</td>
           <td class="rsp-p3" ng-if="ctrl.fields.owner.show">{$ instance.owner $}</td>
-          <td class="rsp-p3" ng-if="ctrl.fields.updated.show">{$ instance.updated | date:short $}</td>
+          <td class="rsp-p3" ng-if="ctrl.fields.updated.show"><time am-time-ago="instance.updated"></time></td>
           <td class="rsp-p3" ng-if="ctrl.fields.user_id.show">{$ instance.user_id $}</td>
           <td>
             <action-list class="btn-group-sm" dropdown>
