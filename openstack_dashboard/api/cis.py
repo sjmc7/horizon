@@ -133,7 +133,10 @@ def server_list(request, search_opts=None, all_tenants=False):
     class FakeInstance(ObjFromDict):
         @property
         def image_name(self):
-            return self.image['name']
+            if isinstance(self.image, dict):
+                return self.image['name']
+            else:
+                return self.image.name
 
     def fake_instance(**entries):
         instance = FakeInstance(**entries)
