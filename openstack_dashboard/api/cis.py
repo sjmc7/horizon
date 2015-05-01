@@ -16,7 +16,7 @@ thismodule = sys.modules[__name__]
 def _get_cis_url(request):
     cis_url = getattr(settings, 'CIS_URL', None)
     try:
-        cis_url = base.url_for(request, 'catalog-index')
+        cis_url = base.url_for(request, 'catalog-search')
     except exceptions.ServiceCatalogException:
         pass
     return cis_url
