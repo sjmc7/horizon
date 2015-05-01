@@ -199,6 +199,7 @@ class Servers(generic.View):
         :param limit: How many results to return
         :param offset: Ignore first <offset> results
         :param sort: Order by (field:direction)
+        :param force-os-api: Use the nova API even if CIS is enabled
         """
         profile_log("Requesting nova instance list")
 
@@ -316,6 +317,7 @@ class ServerSearchFacets(generic.View):
             ]
 
         return facets
+
 
 @urls.register
 class Server(generic.View):

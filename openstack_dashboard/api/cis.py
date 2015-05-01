@@ -29,13 +29,16 @@ def cis_enabled(request):
 def cis_wrapper(fn):
     """Assumes args[0] is a request object, otherwise
     this won't work. If fn.__name__ exists in this module
-    AND CIS is enabled, use the CIS version
+    AND CIS is enabled, use the CIS version. Finally, if
+    'force-os-api' is set as a request parameter, don't use
+    the wrapped function.
     """
     def wrapped(*args, **kwargs):
         request = args[0]
+        force_native_api = request.GET.get('force-os-api', False)
         cis_url = _get_cis_url(request)
         cis_fn = getattr(thismodule, fn.__name__, None)
-        if cis_url is None or cis_fn is None:
+        if cis_url is None or cis_fn is None or force_native_api:
             return fn(*args, **kwargs)
         else:
             return cis_fn(*args, **kwargs)
@@ -130,13 +133,14 @@ def server_list(request, search_opts=None, all_tenants=False):
     class FakeInstance(ObjFromDict):
         @property
         def image_name(self):
-            return self.image.name
+            return self.image['name']
 
     def fake_instance(**entries):
         instance = FakeInstance(**entries)
         instance.addresses = {}
         for net_ip in instance.networks:
-            instance.addresses[net_ip['name']] = [{'addr': ip} for ip in net_ip['ipv4']]
+            instance.addresses.setdefault(net_ip['name'], []).append(net_ip)
+        setattr(instance, 'OS-EXT-SRV-ATTR:host', instance.host)
         return instance
 
     # Returns list, has_more
