@@ -68,9 +68,9 @@
       [ 'dashboardBasePath', '$scope', '$timeout', 'hzUtils', 'POWER_STATES', 'novaAPI', 'simpleModalService', '$modal',
       function(path, $scope, $timeout, hzUtils, POWER_STATES, novaAPI, modal, $modal) {
         var ctrl = this;
-        
+
         ctrl.configureLabel = gettext('Configure Columns');
-        
+
         ctrl.fields = {
           id: { key: 'id', label: gettext('ID'), show: true, required: true },
           name: { key: 'name', label: gettext('Name'), show: true, required: true },
@@ -88,9 +88,9 @@
           updated: { key: 'updated', label: gettext('Updated'), show: false, required: false },
           user_id: { key: 'user_id', label: gettext('User ID'), show: false, required: false }
         };
-        
+
         ctrl.columns = [];
-        
+
         $scope.$watch(function() {
           return ctrl.fields;
         }, function(newValue, oldValue) {
@@ -274,7 +274,7 @@
                     networkIps.push(network);
                   });
                   networkIps.sort(function(a, b) { return a.name.localeCompare(b.name); });
-  
+
                   instance.networkIps = networkIps;
                   if (networkIps.length > 0) {
                     instance.ip = networkIps[0].fixed.length ?
@@ -333,7 +333,7 @@
 
           $modal.open(options);
         };
-        
+
         ctrl.updateFacets();
         ctrl.update();
       }
