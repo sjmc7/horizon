@@ -142,7 +142,6 @@ def server_list(request, search_opts=None, all_tenants=False):
 
     # Logic to retry a search if there are no matches
     if retry_with_jiggle and elastic_results['hits']['total'] == 0:
-        retry = False
         for k, v in query_fields:
             if k == 'free' and '~' not in v:
                 query_fields.remove((k, v))
