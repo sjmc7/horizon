@@ -74,43 +74,51 @@ def server_list(request, search_opts=None, all_tenants=False):
         search_opts = {}
 
     cis_url = _get_cis_url(request) + '/search'
-    search_terms = []
-    if not all_tenants:
-        search_terms.append({'term': {'tenant_id': request.user.tenant_id}})
 
-    for field, term in search_opts.get('query', []):
-        if field == 'free':
-            search_terms.append({'query_string': {'query': term}})
-        else:
-            if '~' in term:
-                next_term = {'query_string': {'fields': [field], 'query': term}}
-            elif '*' in term or '?' in term:
-                next_term = {'wildcard': {field: term}}
+    def get_query_terms(query_field):
+        search_terms = []
+
+        if not all_tenants:
+            search_terms.append({'term': {'tenant_id': request.user.tenant_id}})
+
+        for field, term in query_field:
+            if field == 'free':
+                search_terms.append({'query_string': {'query': term}})
             else:
-                next_term = {'term': {field: term}}
+                if '~' in term:
+                    next_term = {'query_string': {'fields': [field], 'query': term}}
+                elif '*' in term or '?' in term:
+                    next_term = {'wildcard': {field: term}}
+                else:
+                    next_term = {'term': {field: term}}
 
-            if '.' in field:
-                # Nested!
-                search_terms.append({
-                    "nested": {
-                        "path": field.split('.')[0],
-                        "query": next_term
-                    }
-                })
-            else:
-                search_terms.append(next_term)
+                if '.' in field:
+                    # Nested!
+                    search_terms.append({
+                        "nested": {
+                            "path": field.split('.')[0],
+                            "query": next_term
+                        }
+                    })
+                else:
+                    search_terms.append(next_term)
 
-    if search_terms:
-        query = {
-            'bool': {
-                'must': search_terms
+        if search_terms:
+            query = {
+                'bool': {
+                    'must': search_terms
+                }
             }
-        }
-    else:
-        query = {'match_all': {}}
+        else:
+            query = {'match_all': {}}
+
+        return query
+
+    query_fields = search_opts.get('query', [])
+    search_query = get_query_terms(query_fields)
 
     request_body = {
-        'query': query,
+        'query': search_query,
         'type': 'instance',
         'index': 'nova',
     }
@@ -123,12 +131,32 @@ def server_list(request, search_opts=None, all_tenants=False):
     if 'fields' in search_opts:
         request_body['fields'] = search_opts['fields'].split(',')
 
+    retry_with_jiggle = search_opts.get('correct_typos', False)
+
     elastic_results = requests.post(
         cis_url,
         data=json.dumps(request_body),
         headers={'X-Auth-Token': request.user.token.id}
     ).json()
     LOG.warning("%s %s", request_body, elastic_results)
+
+    # Logic to retry a search if there are no matches
+    if retry_with_jiggle and elastic_results['hits']['total'] == 0:
+        retry = False
+        for k, v in query_fields:
+            if k == 'free' and '~' not in v:
+                query_fields.remove((k, v))
+                query_fields.append((k, v + '~'))
+
+                LOG.warning("Retrying search with jiggle factor")
+                request_body['query'] = get_query_terms(query_fields)
+                elastic_results = requests.post(
+                    cis_url,
+                    data=json.dumps(request_body),
+                    headers={'X-Auth-Token': request.user.token.id}
+                ).json()
+                LOG.warning("%s %s", request_body, elastic_results)
+                break
 
     class FakeInstance(ObjFromDict):
         @property

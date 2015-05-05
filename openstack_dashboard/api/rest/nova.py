@@ -204,7 +204,7 @@ class Servers(generic.View):
         profile_log("Requesting nova instance list")
 
         search_opts = {}
-        for field in ('sort', 'offset', 'limit', 'fields'):
+        for field in ('sort', 'offset', 'limit', 'fields', 'correct_typos'):
             if field in request.GET:
                 search_opts[field] = request.GET[field]
 
