@@ -105,6 +105,7 @@
 
         ctrl.pageOpts = {
           cnt: 1,
+          correct_typos: true,
           fields: ctrl.columns.join(','),
           limit: 100,
           offset: 0
