@@ -108,7 +108,8 @@
           correct_typos: true,
           fields: ctrl.columns.join(','),
           limit: 100,
-          offset: 0
+          offset: 0,
+          simplified: true
         };
         ctrl.powerStateMap = POWER_STATES;
 
