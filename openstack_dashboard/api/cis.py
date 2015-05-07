@@ -138,7 +138,8 @@ def server_list(request, search_opts=None, all_tenants=False):
     elastic_results = requests.post(
         cis_url,
         data=json.dumps(request_body),
-        headers={'X-Auth-Token': request.user.token.id}
+        headers={'X-Auth-Token': request.user.token.id},
+        verify=False
     ).json()
     LOG.warning("%s %s", request_body, elastic_results)
 
@@ -154,7 +155,8 @@ def server_list(request, search_opts=None, all_tenants=False):
                 elastic_results = requests.post(
                     cis_url,
                     data=json.dumps(request_body),
-                    headers={'X-Auth-Token': request.user.token.id}
+                    headers={'X-Auth-Token': request.user.token.id},
+                    verify=False
                 ).json()
                 LOG.warning("%s %s", request_body, elastic_results)
                 break
@@ -183,7 +185,8 @@ def server_search_facets(request):
     cis_url = _get_cis_url(request) + '/search/facets?index=nova&type=instance'
     return requests.get(
         cis_url,
-        headers={'X-Auth-Token': request.user.token.id}
+        headers={'X-Auth-Token': request.user.token.id},
+        verify=False
     ).json()['nova']['instance']
 
 
@@ -199,7 +202,8 @@ def image_list_detailed(request, marker=None, sort_dir='desc',
     elastic_results = requests.post(
         cis_url,
         data=json.dumps(request_body),
-        headers={'X-Auth-Token': request.user.token.id}
+        headers={'X-Auth-Token': request.user.token.id},
+        verify=False
     ).json()
 
     class FakeImage(ObjFromDict):
