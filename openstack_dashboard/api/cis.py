@@ -41,6 +41,8 @@ def cis_wrapper(fn):
         if cis_url is None or cis_fn is None or force_native_api:
             return fn(*args, **kwargs)
         else:
+            # TODO: Query CIS-enabled plugins (but it would be
+            # better to get all this from the auth middleware)
             return cis_fn(*args, **kwargs)
     return wrapped
 
