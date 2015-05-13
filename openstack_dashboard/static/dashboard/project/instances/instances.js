@@ -26,6 +26,18 @@
     )
 
     /**
+     * @ngdoc filter
+     * @name hz.dashboard.project.instances.filter:pageCount
+     * @returns {string} Displayed count of total
+     */
+    .filter('pageCount', function() {
+      return function(input, total) {
+        var cntLabel = gettext('Displaying %(count)s of %(total)s items');
+        return interpolate(cntLabel, { count: input, total: total }, true);
+      };
+    })
+
+    /**
      * @ngdoc directive
      * @name hz.dashboard.project.instances.directive:ipAddress
      * @element
