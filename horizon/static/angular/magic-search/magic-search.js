@@ -60,6 +60,12 @@
             });
           });
 
+          $scope.$on('searchUpdated', function() {
+            $scope.isMenuOpen = false;
+            var enterEvt = jQuery.Event('keyup', { keyCode: 27, which: 27 });
+            $('.search-input').trigger(enterEvt);
+          });
+
           // Override magic_search.js initFacets to fix browswer refresh issue
           // and to emit('checkFacets') to flag facets as isServer
           $scope.initFacets = function() {
@@ -114,13 +120,6 @@
                 });
               }
             });
-            // if ($scope.textSearch !== undefined) {
-            //   console.log('textSearch');
-            //   $scope.currentSearch.push({
-            //     'name': 'text=' + $scope.textSearch,
-            //     'label': [$scope.strings.text, $scope.textSearch]
-            //   });
-            // }
             $scope.filteredObj = $scope.facetsObj;
 
             // broadcast to check facets for serverside
@@ -153,6 +152,7 @@
 
             // broadcast to check facets for serverside
             $scope.$emit('checkFacets', $scope.currentSearch);
+            $scope.hideMenu();
           };
 
         }
