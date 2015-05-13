@@ -122,16 +122,15 @@
           });
 
           scope.$on('textSearch', function(event, text, filterKeys) {
-            var searchValue = $('.search-input').val();
-            if (searchValue === '') {
-              var query, params;
+            if ($('.search-input').val() === '') {
+              var query ='', params = {};
               var url = $window.location.href;
               if (url.indexOf('?') > -1) {
                 params = hzUtils.deserialize(url.split('?')[1]);
-                if (text !== '') {
+                if (text === '') {
+                  delete params.free;
+                } else {
                   params.free = text;
-                } else if (angular.isDefined(params.free)) {
-                  // delete params.free;
                 }
                 query = hzUtils.serialize(params);
               } else if (text !== '') {

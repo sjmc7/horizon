@@ -35,13 +35,20 @@
       restrict: 'A',
       controller: ['$scope', '$timeout',
         function($scope, $timeout) {
+          // hack to hide menu after search
+          var searching = false;
+
           // showMenu and hideMenu depend on foundation's dropdown. They need
           // to be modified to work with another dropdown implementation.
           // For bootstrap, they are not needed at all.
           $scope.showMenu = function() {
-            $timeout(function() {
-              $scope.isMenuOpen = true;
-            });
+            if (!searching) {
+              $timeout(function() {
+                $scope.isMenuOpen = true;
+                searching = false;
+              });
+            }
+            searching = false;
           };
           $scope.hideMenu = function() {
             $timeout(function() {
@@ -60,10 +67,9 @@
             });
           });
 
+          // hack to hide menu after searching
           $scope.$on('searchUpdated', function() {
-            $scope.isMenuOpen = false;
-            var enterEvt = jQuery.Event('keyup', { keyCode: 27, which: 27 });
-            $('.search-input').trigger(enterEvt);
+            searching = true;
           });
 
           // Override magic_search.js initFacets to fix browswer refresh issue
@@ -126,6 +132,20 @@
             $scope.$emit('checkFacets', $scope.currentSearch);
           };
 
+          // overwrite so that menu doesn't appear after selection
+          $scope.optionClicked = function($index, $event, name) {
+            $scope.hideMenu();
+            var curr = $scope.facetSelected;
+            curr.name = curr.name + '=' + name;
+            curr.label[1] = $scope.filteredOptions[$index].label;
+            if (Array.isArray(curr.label[1])) {
+                curr.label[1] = curr.label[1].join('');
+            }
+            $scope.currentSearch.push(curr);
+            $scope.resetState();
+            $scope.emitQuery();
+          };
+
           // Override magic_search.js removeFacet to emit('checkFacets')
           // to flag facets as isServer after removing facet and
           // either update filter or search
@@ -134,6 +154,7 @@
             $scope.currentSearch.splice($index, 1);
             if ($scope.facetSelected === undefined) {
               if (removed.indexOf('text=') === 0) {
+                $scope.textSearch = undefined;
                 $scope.$emit('textRemoved');
               } else {
                 $scope.emitQuery(removed);
@@ -152,9 +173,26 @@
 
             // broadcast to check facets for serverside
             $scope.$emit('checkFacets', $scope.currentSearch);
-            $scope.hideMenu();
+
+            // hack to not show menu
+            $event.stopPropagation();
           };
 
+          // hack to clear search properly
+          $scope.clearSearch = function() {
+            $scope.currentSearch = [];
+            $scope.facetsObj = $scope.copyFacets($scope.facetsSave);
+            $scope.resetState();
+            $scope.strings.prompt = $scope.promptString;
+            $scope.textSearch = undefined;
+
+            var url = window.location.href;
+            if (url.indexOf('?') > -1) {
+              url = url.split('?')[0];
+            }
+            window.history.pushState('', '', url);
+            $scope.$emit('searchUpdated', '');
+          };
         }
       ]
     }; // end of return

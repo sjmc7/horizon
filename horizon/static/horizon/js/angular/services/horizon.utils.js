@@ -17,20 +17,24 @@
       },
       deserialize: function(paramString) {
         var paramObj = {};
-        var urlPair = paramString.split('?');
-        urlPair[urlPair.length - 1].split('&')
-          .reduce(function(prev, curr) {
-            var pair = curr.split('=');
-            prev[pair[0]] = pair[1];
-            return prev;
-          }, paramObj);
+        if (paramString) {
+          var urlPair = paramString.split('?');
+          urlPair[urlPair.length - 1].split('&')
+            .reduce(function(prev, curr) {
+              var pair = curr.split('=');
+              prev[pair[0]] = pair[1];
+              return prev;
+            }, paramObj);
+        }
         return paramObj;
       },
       serialize: function(paramObj) {
         var params = [];
         if (angular.isObject(paramObj)) {
           angular.forEach(paramObj, function(value, key) {
-            params.push(key + '=' + value);
+            if (key && value) {
+              params.push(key + '=' + value);
+            }
           });
         }
         return params.join('&');
