@@ -134,8 +134,7 @@
           <td colspan="100">
             <span class="display">{$ ctrl.displayedInstances.length | pageCount:ctrl.instances.length $}</span>
             <div class="text-center"
-              st-pagination st-items-by-page="5"
-              st-displayed-pages="10"></div>
+              st-pagination st-items-by-page="ctrl.pageOpts.pageSize"></div>
           </td>
         </tr>
       </tfoot>

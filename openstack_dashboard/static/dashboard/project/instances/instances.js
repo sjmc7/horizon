@@ -81,7 +81,11 @@
       function(path, $scope, $timeout, hzUtils, POWER_STATES, novaAPI, modal, $modal) {
         var ctrl = this;
 
-        ctrl.configureLabel = gettext('Configure Columns');
+        ctrl.configureLabel = gettext('Settings');
+        ctrl.configColLabel = gettext('Configure Columns');
+        ctrl.pageSizeLabel = gettext('Page Size');
+        ctrl.limitLabel = gettext('Limit');
+        ctrl.pollLabel = gettext('Poll');
 
         ctrl.fields = {
           id: { key: 'id', label: gettext('ID'), show: true, required: true },
@@ -101,8 +105,7 @@
           user_id: { key: 'user_id', label: gettext('User ID'), show: false, required: false }
         };
 
-        ctrl.columns = [];
-
+        // watch for changes in fields to show
         $scope.$watch(function() {
           return ctrl.fields;
         }, function(newValue, oldValue) {
@@ -115,14 +118,45 @@
           ctrl.pageOpts.fields = ctrl.columns.join(',');
         }, true);
 
+        ctrl.columns = [];
+
         ctrl.pageOpts = {
           cnt: 1,
           correct_typos: true,
           fields: ctrl.columns.join(','),
-          limit: 100,
+          limit: null,
           offset: 0,
+          pageSize: 5,
+          poll: true,
           simplified: true
         };
+
+        // watch for poll setting change
+        $scope.$watch(function() {
+          return ctrl.pageOpts.poll;
+        }, function(newValue, oldValue) {
+          if (newValue !== oldValue) {
+            if (angular.isDefined(ctrl.updateTimer)) {
+              $timeout.cancel(ctrl.updateTimer);
+            }
+            if (newValue) {
+              ctrl.updateTimer = $timeout(ctrl.update, 5000, false);
+            }
+          }
+        });
+
+        // watch for limit setting change
+        $scope.$watch(function() {
+          return ctrl.pageOpts.limit;
+        }, function(newValue, oldValue) {
+          if (newValue !== oldValue) {
+            if (angular.isDefined(ctrl.updateTimer)) {
+              $timeout.cancel(ctrl.updateTimer);
+            }
+            ctrl.updateTimer = $timeout(ctrl.update, 400, false);
+          }
+        });
+
         ctrl.powerStateMap = POWER_STATES;
 
         ctrl.instances = [];
@@ -318,7 +352,11 @@
 
               var resultsCount = ctrl.instances.length;
               ctrl.pageOpts.cnt = Math.ceil(resultsCount / ctrl.pageOpts.limit);
-              ctrl.updateTimer = $timeout(ctrl.update, 5000, false);
+
+              if (ctrl.pageOpts.poll) {
+                // if polling it turned on, update
+                ctrl.updateTimer = $timeout(ctrl.update, 5000, false);
+              }
 
               // refetch facets
               ctrl.updateFacets();
@@ -341,7 +379,7 @@
         ctrl.showSettings = function() {
           var options = {
             scope: $scope,
-            size: 'sm',
+            // size: 'sm',
             templateUrl: path + 'project/instances/settings.html'
           };
 
