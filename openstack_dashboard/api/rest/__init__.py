@@ -30,3 +30,4 @@ from . import network      #flake8: noqa
 from . import neutron      #flake8: noqa
 from . import nova         #flake8: noqa
 from . import policy       #flake8: noqa
+from . import searchlight       #flake8: noqa
