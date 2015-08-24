@@ -14,6 +14,7 @@
 
 from django.conf import settings
 from django.views import generic
+from django.views.decorators.csrf import csrf_exempt
 import functools
 import json
 import requests
@@ -30,6 +31,7 @@ class Search(generic.View):
     """
     url_regex = r'searchlight/search/$'
 
+    @csrf_exempt
     @rest_utils.ajax()
     def post(self, request):
         """Executes a search query against searchlight and returns the 'hits'

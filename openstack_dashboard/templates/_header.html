@@ -2,7 +2,7 @@
 {% load url from future %}
 {% load context_selection %}
 
-<nav class="navbar navbar-default">
+<nav class="row navbar navbar-default">
   <div class="container-fluid">
     <!-- Brand and toggle get grouped for better mobile display -->
     <div class="navbar-header">
@@ -32,6 +32,137 @@
       </ul>
 
       {% include "horizon/common/_region_selector.html" %}
+
+      <!-- START STEVE -->
+      <script type="text/javascript" src="https://rawgit.com/brianreavis/selectize.js/master/dist/js/standalone/selectize.js"></script>
+      <link rel="stylesheet" type="text/css" href="https://rawgit.com/brianreavis/selectize.js/master/dist/css/selectize.css" />
+
+      <select class="col-md-6" placeholder="Search..." id="magic-searchlight"></select>
+      <style>
+      .searchlight-result .search-result-type {
+          font-weight: bold;
+      }
+      .searchlight-result-nav {
+          font-weight: bold;
+          font-size: 1.2em;
+
+      }
+      .searchlight-result-instance {
+          background-color: #DEA5A4;
+      }
+      .searchlight-result-image {
+          background-color: #77DD77;
+      }
+      .searchlight-result-metadef {
+          background-color: #FDFD96;
+      }
+      .selectize-dropdown-content {
+          max-height: 600px;
+      }
+      </style>
+      <script type="text/javascript">
+      $.ajaxSetup({
+        beforeSend: function(xhr, settings) {
+            xhr.setRequestHeader("X-CSRFToken", '{{ csrf_token }}');
+        }
+      });
+
+      var nav_links = {
+          'overview': {'_id': 'overview', 'name': 'Overview', 'link': '/project', 'nav': true},
+          'instances': {'_id': 'instances', 'name': 'Instances', 'link': '/project/instances', 'nav': true},
+          'images': {'_id': 'images', 'name': 'Images', 'link': '/project/images', 'nav': true},
+          'security groups': {'_id': 'security groups', 'name': 'Security Groups', 'link': '/project/access_and_security/?tab=access_security_tabs__security_groups_tab', 'nav': true},
+          'key pairs': {'_id': 'key pairs', 'name': 'Key Pairs', 'link': '/project/access_and_security/?tab=access_security_tabs__keypairs_tab', 'nav': true},
+          'networks': {'_id': 'networks', 'name': 'Networks', 'link': '/project/networks', 'nav': true},
+          'network topology': {'_id': 'network toplogy', 'name': 'Network Toplogy', 'link': '/project/network_topology', 'nav': true},
+      }
+
+      $('#magic-searchlight').selectize({
+        //preload: true,
+        valueField: '_id',
+        labelField: '_id',
+        searchField: 'foo',
+        closeAfterSelect: true,
+        selectOnTab: true,
+        //options: [],
+        create: false,
+        render: {
+          option: function(item, escape) {
+            if (item['nav']) {
+                return '<div><span class="searchlight-result-nav">' + item.name + '</span></div>';
+            }
+            // This should be a resource type field
+            var index_type = '<span class="search-result-type searchlight-result-' + item['_type'] + '">' + item['_index'] + ' - ' + item['_type'] + '</span>';
+            var label = item['_source']['name'];
+            if (item['_type'] === 'metadef') {
+              label = item['_id'];
+            };
+            return '<div>' + index_type + ' : ' + label + '</div>';
+          }
+        },
+        score: function(search) {
+          return function(item) {
+              if ('nav' in item)
+                return 1;
+              else
+                return item['_score'];
+          };
+        },
+        onChange: function(value) {
+            // This isn't entirely safe; an instance and an image with the same id..
+            console.log(value);
+            console.log(this.options[value]);
+            var selectedItem = this.options[value];
+            var redirect_url = null;
+            if (selectedItem['nav']) {
+                redirect_url = selectedItem['link'];
+            } else {
+                switch (selectedItem['_type']) {
+                    case 'image':
+                        redirect_url = '/project/images/' + selectedItem['_id'];
+                        break;
+                    case 'instance':
+                        redirect_url = '/project/instances/' + selectedItem['_id'];
+                        break;
+                    case 'metadef':
+                        redirect_url = '/admin/metadata_defs/' + selectedItem['_id'] + '/detail';
+                        break;
+                }
+                ;
+            };
+            if (redirect_url != null) {
+                console.log('Redirecting to ' + redirect_url);
+                window.location = redirect_url;
+            };
+        },
+        load: function(query, callback) {
+          if (!query.length) return callback();
+          $.ajax({
+            url: '/api/searchlight/search/',
+            data: JSON.stringify({
+                'query': {
+                    'query_string': {'query': query + '*'}
+                },
+                'limit': 25
+            }),
+            type: 'POST',
+            dataType: 'json',
+            success: function (res) {
+                console.log(res);
+                $("#magic-searchlight")[0].selectize.clearOptions();
+                for (var match in nav_links) {
+                    if (match.startsWith(query.toLowerCase())) {
+                        $("#magic-searchlight")[0].selectize.addOption(nav_links[match]);
+                    }
+                }
+                callback(res.hits);
+            }
+          });
+        }
+      });
+      </script>
+      <!-- END STEVE -->
+
 
       <ul class="nav navbar-nav navbar-right">
         <li class="dropdown">
