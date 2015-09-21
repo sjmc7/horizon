@@ -118,13 +118,13 @@
                 redirect_url = selectedItem['link'];
             } else {
                 switch (selectedItem['_type']) {
-                    case 'image':
+                    case 'OS::Glance::Image':
                         redirect_url = '/project/images/' + selectedItem['_id'];
                         break;
-                    case 'instance':
+                    case 'OS::Nova::Server':
                         redirect_url = '/project/instances/' + selectedItem['_id'];
                         break;
-                    case 'metadef':
+                    case 'OS::Glance::Metadef':
                         redirect_url = '/admin/metadata_defs/' + selectedItem['_id'] + '/detail';
                         break;
                 }
