@@ -14,7 +14,6 @@
 // Vendor Components
 @import "/bootstrap/scss/bootstrap";
 @import "/horizon/lib/font-awesome/scss/font-awesome.scss";
-@import "/horizon/lib/magic_search/magic_search.scss";
 
 // Dashboard Components
 @import "splash";
@@ -27,6 +26,7 @@
 @import "components/network_topology";
 @import "/angular/styles";
 
+@import "/horizon/lib/magic_search/magic_search.scss";
 
 /* new clearfix */
 .clearfix:after {
