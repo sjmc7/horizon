@@ -19,7 +19,7 @@ import uuid
 
 from django import http
 from django.test.utils import override_settings
-from mox import IsA  # noqa
+from mox3.mox import IsA  # noqa
 
 from novaclient.v2 import floating_ip_pools
 
@@ -473,7 +473,7 @@ class NetworkApiNeutronSecurityGroupTests(NetworkApiNeutronTestBase):
         instance_port = [p for p in self.api_ports.list()
                          if p['device_owner'].startswith('compute:')][0]
         instance_id = instance_port['device_id']
-        # Emulate an intance with two ports
+        # Emulate an instance with two ports
         instance_ports = []
         for _i in range(2):
             p = copy.deepcopy(instance_port)
@@ -691,7 +691,12 @@ class NetworkApiNeutronFloatingIpTests(NetworkApiNeutronTestBase):
     def _subs_from_port(self, port):
         return [ip['subnet_id'] for ip in port['fixed_ips']]
 
-    @override_settings(OPENSTACK_NEUTRON_NETWORK={'enable_lb': True})
+    @override_settings(
+        OPENSTACK_NEUTRON_NETWORK={
+            'enable_lb': True,
+            'enable_fip_topology_check': True,
+        }
+    )
     def test_floating_ip_target_list(self):
         ports = self.api_ports.list()
         # Port on the first subnet is connected to a router

@@ -25,6 +25,7 @@ import django
 from django.utils.translation import ugettext_lazy as _
 
 from openstack_dashboard import exceptions
+from openstack_dashboard.static_settings import find_static_files  # noqa
 from openstack_dashboard.static_settings import get_staticfiles_dirs  # noqa
 
 
@@ -46,7 +47,8 @@ WEBROOT = '/'
 LOGIN_URL = None
 LOGOUT_URL = None
 LOGIN_REDIRECT_URL = None
-
+STATIC_ROOT = None
+STATIC_URL = None
 
 ROOT_URLCONF = 'openstack_dashboard.urls'
 
@@ -62,9 +64,11 @@ HORIZON_CONFIG = {
     'exceptions': {'recoverable': exceptions.RECOVERABLE,
                    'not_found': exceptions.NOT_FOUND,
                    'unauthorized': exceptions.UNAUTHORIZED},
+    'modal_backdrop': 'static',
     'angular_modules': [],
     'js_files': [],
     'js_spec_files': [],
+    'external_templates': [],
 }
 
 # Set to True to allow users to upload images to glance via Horizon server.
@@ -81,6 +85,7 @@ OPENSTACK_IMAGE_BACKEND = {
         ('aki', _('AKI - Amazon Kernel Image')),
         ('ami', _('AMI - Amazon Machine Image')),
         ('ari', _('ARI - Amazon Ramdisk Image')),
+        ('docker', _('Docker')),
         ('iso', _('ISO - Optical Disk Image')),
         ('ova', _('OVA - Open Virtual Appliance')),
         ('qcow2', _('QCOW2 - QEMU Emulator')),
@@ -137,7 +142,7 @@ STATICFILES_FINDERS = (
 )
 
 COMPRESS_PRECOMPILERS = (
-    ('text/scss', 'django_pyscss.compressor.DjangoScssFilter'),
+    ('text/scss', 'horizon.utils.scss_filter.HorizonScssFilter'),
 )
 
 COMPRESS_CSS_FILTERS = (
@@ -256,9 +261,10 @@ SECURITY_GROUP_RULES = {
 
 ADD_INSTALLED_APPS = []
 
-# STATIC directory for custom theme, set as default.
+# directory for custom theme, set as default.
 # It can be overridden in local_settings.py
-CUSTOM_THEME_PATH = 'static/themes/default'
+DEFAULT_THEME_PATH = 'themes/default'
+CUSTOM_THEME_PATH = DEFAULT_THEME_PATH
 
 try:
     from local.local_settings import *  # noqa
@@ -276,14 +282,50 @@ if LOGIN_REDIRECT_URL is None:
 
 MEDIA_ROOT = os.path.abspath(os.path.join(ROOT_PATH, '..', 'media'))
 MEDIA_URL = WEBROOT + 'media/'
-STATIC_ROOT = os.path.abspath(os.path.join(ROOT_PATH, '..', 'static'))
-STATIC_URL = WEBROOT + 'static/'
-STATICFILES_DIRS = get_staticfiles_dirs(WEBROOT)
+
+if STATIC_ROOT is None:
+    STATIC_ROOT = os.path.abspath(os.path.join(ROOT_PATH, '..', 'static'))
+
+if STATIC_URL is None:
+    STATIC_URL = WEBROOT + 'static/'
+
+STATICFILES_DIRS = get_staticfiles_dirs(STATIC_URL)
 
 CUSTOM_THEME = os.path.join(ROOT_PATH, CUSTOM_THEME_PATH)
+
+# If a custom template directory exists within our custom theme, then prepend
+# it to our first-come, first-serve TEMPLATE_DIRS
+if os.path.exists(os.path.join(CUSTOM_THEME, 'templates')):
+    TEMPLATE_DIRS = \
+        (os.path.join(CUSTOM_THEME, 'templates'),) + TEMPLATE_DIRS
+
+# Only expose the subdirectory 'static' if it exists from a custom theme,
+# allowing other logic to live with a theme that we might not want to expose
+# statically
+if os.path.exists(os.path.join(CUSTOM_THEME, 'static')):
+    CUSTOM_THEME = os.path.join(CUSTOM_THEME, 'static')
+
+# Only collect and expose the default theme if the user chose to set a
+# different theme
+if DEFAULT_THEME_PATH != CUSTOM_THEME_PATH:
+    STATICFILES_DIRS.append(
+        ('themes/default', os.path.join(ROOT_PATH, DEFAULT_THEME_PATH)),
+    )
+
 STATICFILES_DIRS.append(
     ('custom', CUSTOM_THEME),
 )
+
+# Load the subdirectory 'img' of a custom theme if it exists, thereby allowing
+# very granular theme overrides of all dashboard img files using the first-come
+# first-serve filesystem loader.
+if os.path.exists(os.path.join(CUSTOM_THEME, 'img')):
+    STATICFILES_DIRS.insert(0, ('dashboard/img',
+                            os.path.join(CUSTOM_THEME, 'img')))
+
+# populate HORIZON_CONFIG with auto-discovered JavaScript sources, mock files,
+# specs files and external templates.
+find_static_files(HORIZON_CONFIG)
 
 # Load the pluggable dashboard settings
 import openstack_dashboard.enabled
@@ -318,6 +360,7 @@ POLICY_CHECK_FUNCTION = policy_backend.check
 
 # Add HORIZON_CONFIG to the context information for offline compression
 COMPRESS_OFFLINE_CONTEXT = {
+    'WEBROOT': WEBROOT,
     'STATIC_URL': STATIC_URL,
     'HORIZON_CONFIG': HORIZON_CONFIG,
 }

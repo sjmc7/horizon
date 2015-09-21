@@ -41,11 +41,21 @@ class AdminEditImage(project_tables.EditImage):
 
 
 class UpdateMetadata(tables.LinkAction):
-    url = "horizon:admin:images:update_metadata"
     name = "update_metadata"
     verbose_name = _("Update Metadata")
-    classes = ("ajax-modal",)
+    ajax = False
     icon = "pencil"
+    attrs = {"ng-controller": "MetadataModalHelperController as modal"}
+
+    def __init__(self, attrs=None, **kwargs):
+        kwargs['preempt'] = True
+        super(UpdateMetadata, self).__init__(attrs, **kwargs)
+
+    def get_link_url(self, datum):
+        image_id = self.table.get_object_id(datum)
+        self.attrs['ng-click'] = (
+            "modal.openMetadataModal('image', '%s', true)" % image_id)
+        return "javascript:void(0);"
 
 
 class UpdateRow(tables.Row):
@@ -69,6 +79,7 @@ class AdminImagesTable(project_tables.ImagesTable):
     name = tables.Column("name",
                          link="horizon:admin:images:detail",
                          verbose_name=_("Image Name"))
+    tenant = tables.Column("tenant_name", verbose_name=_("Project"))
 
     class Meta(object):
         name = "images"
@@ -78,3 +89,5 @@ class AdminImagesTable(project_tables.ImagesTable):
         table_actions = (AdminCreateImage, AdminDeleteImage,
                          AdminImageFilterAction)
         row_actions = (AdminEditImage, UpdateMetadata, AdminDeleteImage)
+        columns = ('tenant', 'name', 'image_type', 'status', 'public',
+                   'protected', 'disk_format', 'size')

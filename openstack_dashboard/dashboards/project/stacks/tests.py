@@ -21,7 +21,8 @@ from django import http
 from django.test.utils import override_settings  # noqa
 from django.utils import html
 
-from mox import IsA  # noqa
+from mox3.mox import IsA  # noqa
+import six
 
 from openstack_dashboard import api
 from openstack_dashboard.test import helpers as test
@@ -87,7 +88,7 @@ class MappingsTests(test.TestCase):
             'aaa')
 
     def test_stack_output(self):
-        self.assertEqual(u'foo', mappings.stack_output('foo'))
+        self.assertEqual(u'<pre>foo</pre>', mappings.stack_output('foo'))
         self.assertEqual(u'', mappings.stack_output(None))
 
         outputs = ['one', 'two', 'three']
@@ -626,7 +627,7 @@ class StackTests(test.TestCase):
             'disable_rollback': True,
             'timeout_mins': 61,
             'password': 'password',
-            'template': IsA(unicode),
+            'template': IsA(six.text_type),
             'parameters': IsA(dict)
         }
         api.heat.stack_update(IsA(http.HttpRequest),

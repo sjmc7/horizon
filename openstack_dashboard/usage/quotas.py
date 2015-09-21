@@ -24,6 +24,7 @@ from openstack_dashboard.api import cinder
 from openstack_dashboard.api import network
 from openstack_dashboard.api import neutron
 from openstack_dashboard.api import nova
+from openstack_dashboard import policy
 
 
 LOG = logging.getLogger(__name__)
@@ -144,7 +145,12 @@ def _get_quota_data(request, method_name, disabled_quotas=None,
     if disabled_quotas is None:
         disabled_quotas = get_disabled_quotas(request)
     if 'volumes' not in disabled_quotas:
-        quotasets.append(getattr(cinder, method_name)(request, tenant_id))
+        try:
+            quotasets.append(getattr(cinder, method_name)(request, tenant_id))
+        except cinder.ClientException:
+            disabled_quotas.extend(CINDER_QUOTA_FIELDS)
+            msg = _("Unable to retrieve volume limit information.")
+            exceptions.handle(request, msg)
     for quota in itertools.chain(*quotasets):
         if quota.name not in disabled_quotas:
             qs[quota.name] = quota.limit
@@ -254,8 +260,14 @@ def get_disabled_quotas(request):
 
 def _get_tenant_compute_usages(request, usages, disabled_quotas, tenant_id):
     if tenant_id:
+        # determine if the user has permission to view across projects
+        # there are cases where an administrator wants to check the quotas
+        # on a project they are not scoped to
+        all_tenants = policy.check((("compute", "compute:get_all_tenants"),),
+                                   request)
         instances, has_more = nova.server_list(
-            request, search_opts={'tenant_id': tenant_id}, all_tenants=True)
+            request, search_opts={'tenant_id': tenant_id},
+            all_tenants=all_tenants)
     else:
         instances, has_more = nova.server_list(request)
 
@@ -320,16 +332,20 @@ def _get_tenant_network_usages(request, usages, disabled_quotas, tenant_id):
 
 def _get_tenant_volume_usages(request, usages, disabled_quotas, tenant_id):
     if 'volumes' not in disabled_quotas:
-        if tenant_id:
-            opts = {'alltenants': 1, 'tenant_id': tenant_id}
-            volumes = cinder.volume_list(request, opts)
-            snapshots = cinder.volume_snapshot_list(request, opts)
-        else:
-            volumes = cinder.volume_list(request)
-            snapshots = cinder.volume_snapshot_list(request)
-        usages.tally('gigabytes', sum([int(v.size) for v in volumes]))
-        usages.tally('volumes', len(volumes))
-        usages.tally('snapshots', len(snapshots))
+        try:
+            if tenant_id:
+                opts = {'all_tenants': 1, 'project_id': tenant_id}
+                volumes = cinder.volume_list(request, opts)
+                snapshots = cinder.volume_snapshot_list(request, opts)
+            else:
+                volumes = cinder.volume_list(request)
+                snapshots = cinder.volume_snapshot_list(request)
+            usages.tally('gigabytes', sum([int(v.size) for v in volumes]))
+            usages.tally('volumes', len(volumes))
+            usages.tally('snapshots', len(snapshots))
+        except cinder.ClientException:
+            msg = _("Unable to retrieve volume limit information.")
+            exceptions.handle(request, msg)
 
 
 @memoized
@@ -378,7 +394,7 @@ def tenant_limit_usages(request):
             limits['gigabytesUsed'] = total_size
             limits['volumesUsed'] = len(volumes)
             limits['snapshotsUsed'] = len(snapshots)
-        except Exception:
+        except cinder.ClientException:
             msg = _("Unable to retrieve volume limit information.")
             exceptions.handle(request, msg)
 

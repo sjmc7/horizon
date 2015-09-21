@@ -24,6 +24,7 @@
 
 from __future__ import print_function
 
+import django
 import os
 import sys
 
@@ -36,6 +37,8 @@ sys.path.insert(0, ROOT)
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'openstack_dashboard.settings')
 
 import horizon.version
+
+django.setup()
 
 
 def write_autodoc_index():
@@ -231,7 +234,7 @@ show_authors = False
 pygments_style = 'sphinx'
 
 # A list of ignored prefixes for module index sorting.
-# modindex_common_prefix = []
+modindex_common_prefix = ['horizon.', 'openstack_dashboard.']
 
 primary_domain = 'py'
 nitpicky = False

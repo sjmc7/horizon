@@ -10,11 +10,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from django.utils.translation import ugettext_lazy as _
-
 from horizon import views
 
 
 class IndexView(views.HorizonTemplateView):
     template_name = 'admin/plugin_panel/index.html'
-    page_title = _("Plugin-based Panel")
+    page_title = 'Plugin-based Panel'

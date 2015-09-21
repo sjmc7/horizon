@@ -1,3 +1,4 @@
+*.egg*
 *.mo
 *.pyc
 *.sw?
@@ -13,7 +14,6 @@ nosetests.xml
 pep8.txt
 pylint.txt
 reports
-horizon.egg-info
 openstack_dashboard/local/local_settings.py
 openstack_dashboard/local/local_settings.diff
 openstack_dashboard/local/.secret_key_store
@@ -24,6 +24,8 @@ doc/source/sourcecode
 /static/
 .venv
 .tox
+node_modules
+npm-debug.log
 build
 dist
 AUTHORS

@@ -10,8 +10,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 from django.core.urlresolvers import reverse
+from django.forms import ValidationError  # noqa
 from django.utils.translation import ugettext_lazy as _
 
 from horizon import exceptions
@@ -19,6 +19,64 @@ from horizon import forms
 from horizon import messages
 
 from openstack_dashboard.api import cinder
+
+
+class CreateVolumeType(forms.SelfHandlingForm):
+    name = forms.CharField(max_length=255, label=_("Name"))
+    vol_type_description = forms.CharField(
+        max_length=255,
+        widget=forms.Textarea(attrs={'rows': 4}),
+        label=_("Description"),
+        required=False)
+
+    def clean_name(self):
+        cleaned_name = self.cleaned_data['name']
+        if len(cleaned_name.strip()) == 0:
+            raise ValidationError(_('Volume type name can not be empty.'))
+
+        return cleaned_name
+
+    def handle(self, request, data):
+        try:
+            # Remove any new lines in the public key
+            volume_type = cinder.volume_type_create(
+                request,
+                data['name'],
+                data['vol_type_description'])
+            messages.success(request, _('Successfully created volume type: %s')
+                             % data['name'])
+            return volume_type
+        except Exception as e:
+            if getattr(e, 'code', None) == 409:
+                msg = _('Volume type name "%s" already '
+                        'exists.') % data['name']
+                self._errors['name'] = self.error_class([msg])
+            else:
+                redirect = reverse("horizon:admin:volumes:index")
+                exceptions.handle(request,
+                                  _('Unable to create volume type.'),
+                                  redirect=redirect)
+
+
+class CreateQosSpec(forms.SelfHandlingForm):
+    name = forms.CharField(max_length=255, label=_("Name"))
+    consumer = forms.ChoiceField(label=_("Consumer"),
+                                 choices=cinder.CONSUMER_CHOICES)
+
+    def handle(self, request, data):
+        try:
+            qos_spec = cinder.qos_spec_create(request,
+                                              data['name'],
+                                              {'consumer': data['consumer']})
+            messages.success(request,
+                             _('Successfully created QoS Spec: %s')
+                             % data['name'])
+            return qos_spec
+        except Exception:
+            redirect = reverse("horizon:admin:volumes:index")
+            exceptions.handle(request,
+                              _('Unable to create QoS Spec.'),
+                              redirect=redirect)
 
 
 class CreateVolumeTypeEncryption(forms.SelfHandlingForm):
@@ -72,44 +130,22 @@ class ManageQosSpecAssociation(forms.SelfHandlingForm):
         qos_spec_field.choices = \
             self.populate_qos_spec_choices()
 
-        # pre-select the current qos spec, if exists
-        # if no association exists, the selected entry will be "None"
-        # since it is index 0 of the choice box
-        current_qos_spec = self.initial["cur_qos_spec_id"]
-        if current_qos_spec:
-            qos_spec_field.initial = current_qos_spec
-
     def populate_qos_spec_choices(self):
         # populate qos spec list box
         qos_specs = self.initial["qos_specs"]
+        current_qos_spec = self.initial["cur_qos_spec_id"]
         qos_spec_list = [(qos_spec.id, qos_spec.name)
-                         for qos_spec in qos_specs]
+                         for qos_spec in qos_specs
+                         if qos_spec.id != current_qos_spec]
 
-        # 'none' is always listed first
-        qos_spec_list.insert(0, ("-1", _("None")))
-        return qos_spec_list
-
-    def clean_qos_spec_choice(self):
-        # ensure that new association isn't the same as current association
-        cleaned_new_spec_id = self.cleaned_data.get('qos_spec_choice')
-        cur_spec_id = self.initial['cur_qos_spec_id']
-
-        found_error = False
-        if cur_spec_id:
-            # new = current
-            if cur_spec_id == cleaned_new_spec_id:
-                found_error = True
+        if current_qos_spec:
+            # used to remove the current spec
+            qos_spec_list.insert(0, ("-1", _("None (removes spec)")))
+        if qos_spec_list:
+            qos_spec_list.insert(0, ("", _("Select a new QoS spec")))
         else:
-            # no current association
-            if cleaned_new_spec_id == '-1':
-                # new = current
-                found_error = True
-
-        if found_error:
-            raise forms.ValidationError(
-                _('New associated QoS Spec must be different than '
-                  'the current associated QoS Spec.'))
-        return cleaned_new_spec_id
+            qos_spec_list.insert(0, ("", _("No new QoS spec available")))
+        return qos_spec_list
 
     def handle(self, request, data):
         vol_type_id = self.initial['type_id']
@@ -187,4 +223,42 @@ class EditQosSpecConsumer(forms.SelfHandlingForm):
         except Exception:
             redirect = reverse("horizon:admin:volumes:index")
             exceptions.handle(request, _('Error editing QoS Spec consumer.'),
+                              redirect=redirect)
+
+
+class EditVolumeType(forms.SelfHandlingForm):
+    name = forms.CharField(max_length=255,
+                           label=_("Name"))
+    description = forms.CharField(max_length=255,
+                                  widget=forms.Textarea(attrs={'rows': 4}),
+                                  label=_("Description"),
+                                  required=False)
+
+    def clean_name(self):
+        cleaned_name = self.cleaned_data['name']
+        if len(cleaned_name.strip()) == 0:
+            msg = _('New name cannot be empty.')
+            self._errors['name'] = self.error_class([msg])
+
+        return cleaned_name
+
+    def handle(self, request, data):
+        volume_type_id = self.initial['id']
+        try:
+            cinder.volume_type_update(request,
+                                      volume_type_id,
+                                      data['name'],
+                                      data['description'])
+            message = _('Successfully updated volume type.')
+            messages.success(request, message)
+            return True
+        except Exception as ex:
+            redirect = reverse("horizon:admin:volumes:index")
+            if ex.code == 409:
+                error_message = _('New name conflicts with another '
+                                  'volume type.')
+            else:
+                error_message = _('Unable to update volume type.')
+
+            exceptions.handle(request, error_message,
                               redirect=redirect)

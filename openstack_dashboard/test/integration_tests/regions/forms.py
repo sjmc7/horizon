@@ -64,6 +64,10 @@ class BaseFormFieldRegion(baseregion.BaseRegion):
     def element(self):
         return self._get_element(*self._element_locator)
 
+    @property
+    def name(self):
+        return self.element.get_attribute('name')
+
     def is_required(self):
         classes = self.driver.get_attribute('class')
         return 'required' in classes
@@ -72,12 +76,7 @@ class BaseFormFieldRegion(baseregion.BaseRegion):
         return self.element.is_displayed()
 
 
-class CheckBoxFormFieldRegion(BaseFormFieldRegion):
-    """Checkbox field."""
-
-    _element_locator = (by.By.CSS_SELECTOR,
-                        'div > label > input[type=checkbox]')
-
+class CheckBoxMixin(object):
     def is_marked(self):
         return self.element.is_selected()
 
@@ -88,6 +87,20 @@ class CheckBoxFormFieldRegion(BaseFormFieldRegion):
     def unmark(self):
         if self.is_marked():
             self.element.click()
+
+
+class CheckBoxFormFieldRegion(BaseFormFieldRegion, CheckBoxMixin):
+    """Checkbox field."""
+
+    _element_locator = (by.By.CSS_SELECTOR,
+                        'div > label > input[type=checkbox]')
+
+
+class ProjectPageCheckBoxFormFieldRegion(BaseFormFieldRegion, CheckBoxMixin):
+    """Checkbox field for Project-page."""
+
+    _element_locator = (by.By.CSS_SELECTOR,
+                        'div > input[type=checkbox]')
 
 
 class ChooseFileFormFieldRegion(BaseFormFieldRegion):
@@ -188,6 +201,10 @@ class SelectFormFieldRegion(BaseFormFieldRegion):
         return results
 
     @property
+    def name(self):
+        return self.element._el.get_attribute('name')
+
+    @property
     def text(self):
         return self.element.first_selected_option.text
 
@@ -236,6 +253,7 @@ class FormRegion(BaseFormRegion):
     _header_locator = (by.By.CSS_SELECTOR, 'div.modal-header > h3')
     _side_info_locator = (by.By.CSS_SELECTOR, 'div.right')
     _fields_locator = (by.By.CSS_SELECTOR, 'fieldset > div.form-group')
+    _input_locator = (by.By.CSS_SELECTOR, 'input,select,textarea')
 
     # private methods
     def __init__(self, driver, conf, src_elem, form_field_names):
@@ -250,12 +268,13 @@ class FormRegion(BaseFormRegion):
 
     def _get_form_fields(self):
         fields_els = self._get_elements(*self._fields_locator)
-        form_fields = []
+        form_fields = {}
         try:
             self._turn_off_implicit_wait()
             for elem in fields_els:
                 field_factory = FieldFactory(self.driver, self.conf, elem)
-                form_fields.append(field_factory.make_form_field())
+                field = field_factory.make_form_field()
+                form_fields[field.name] = field
         finally:
             self._turn_on_implicit_wait()
         return form_fields
@@ -332,8 +351,12 @@ class TabbedFormRegion(FormRegion):
 
         def __call__(self, *args, **kwargs):
             self.switch_to_tab(self.tab_index)
-            return [field for field in self.get_fields()
-                    if field.is_displayed()]
+            fields = self.get_fields()
+            if isinstance(fields, dict):
+                return dict([(key, field) for (key, field)
+                             in fields.iteritems() if field.is_displayed()])
+            else:
+                return [field for field in fields if field.is_displayed()]
 
     @property
     def tabs(self):

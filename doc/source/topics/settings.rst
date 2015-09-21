@@ -248,7 +248,7 @@ when associating one with an instance.
 Default: ``[]``
 
 A list of AngularJS modules to be loaded when Angular bootstraps. These modules
-are added as dependencies on the root Horizon application ``hz``.
+are added as dependencies on the root Horizon application ``horizon``.
 
 ``js_files``
 -------------------------
@@ -393,18 +393,48 @@ This example sorts flavors by vcpus in descending order::
          'reverse': True,
     }
 
+
 ``CUSTOM_THEME_PATH``
 ---------------------
 
 .. versionadded:: 2015.1(Kilo)
 
-Default: ``"static/themes/default"``
+Default: ``"themes/default"``
 
-This setting allows Horizon to use a custom theme. The theme folder
-should contains one _variables.scss file and one _styles.scss file.
-_variables.scss contains all the bootstrap and horizon specific variables
-which are used to style the GUI. Whereas _styles.scss contains extra styling.
-For example themes, see: /horizon/openstack_dashboard/static/themes/
+This setting tells Horizon to use a directory as a custom theme.
+
+By default, this directory will serve as the static root of the theme
+and the entire contents of the directory will be served up at
+``/static/custom``.  If you wish to include content other than static
+files in a theme directory, but do not wish that content to be served up,
+then you can create a sub directory named ``static``. If the theme folder
+contains a sub-directory with the name ``static``, then
+``static/custom/static``` will be used as the root for the content
+served at ``/static/custom``.
+
+The static root of the theme folder must always contain a _variables.scss
+file and a _styles.scss file.  These must contain or import all the
+bootstrap and horizon specific variables and styles which are used to style
+the GUI. For example themes, see: /horizon/openstack_dashboard/themes/
+
+Horizon ships with one alternate theme based on Google's Material Design.  To
+use the alternate theme, set your CUSTOM_THEME_PATH to ``themes/material``.
+
+
+``DEFAULT_THEME_PATH``
+----------------------
+
+.. versionadded:: 8.0.0(Liberty)
+
+Default: ``"themes/default"``
+
+This setting allows Horizon to collect an additional theme during static
+collection and be served up via /static/themes/default.  This is useful
+if CUSTOM_THEME_PATH inherits from another theme (like 'default').
+
+If DEFAULT_THEME_PATH is the same as CUSTOM_THEME_PATH, then collection
+is skipped and /static/themes will not exist.
+
 
 ``DROPDOWN_MAX_ITEMS``
 ----------------------
@@ -486,13 +516,13 @@ OpenStack dashboard to use a specific API version for a given service API.
     The version should be formatted as it appears in the URL for the
     service API. For example, the identity service APIs have inconsistent
     use of the decimal point, so valid options would be "2.0" or "3".
-    For example,
-    OPENSTACK_API_VERSIONS = {
-        "data-processing": 1.1,
-        "identity": 3,
-        "volume": 2
-    }
+    For example::
 
+        OPENSTACK_API_VERSIONS = {
+            "data-processing": 1.1,
+            "identity": 3,
+            "volume": 2
+        }
 
 ``OPENSTACK_ENABLE_PASSWORD_RETRIEVE``
 --------------------------------------
@@ -538,7 +568,8 @@ Default::
 
     {
         'can_set_mount_point': False,
-        'can_set_password': False
+        'can_set_password': False,
+        'requires_keypair': False,
     }
 
 A dictionary containing settings which can be used to identify the
@@ -551,6 +582,9 @@ from the UI.
 
 Setting ``can_set_password`` to ``True`` will enable the option to set
 an administrator password when launching or rebuilding an instance.
+
+Setting ``requires_keypair`` to ``True`` will require users to select
+a key pair when launching an instance.
 
 
 ``OPENSTACK_IMAGE_BACKEND``
@@ -566,6 +600,7 @@ Default::
             ('aki', _('AKI - Amazon Kernel Image')),
             ('ami', _('AMI - Amazon Machine Image')),
             ('ari', _('ARI - Amazon Ramdisk Image')),
+            ('docker', _('Docker')),
             ('iso', _('ISO - Optical Disk Image')),
             ('qcow2', _('QCOW2 - QEMU Emulator')),
             ('raw', _('Raw')),
@@ -650,7 +685,26 @@ with Keystone V3. All entities will be created in the default domain.
 Default: ``"_member_"``
 
 The name of the role which will be assigned to a user when added to a project.
-This name must correspond to a role name in Keystone.
+This value must correspond to an existing role name in Keystone. In general,
+the value should match the ``member_role_name`` defined in ``keystone.conf``.
+
+
+``OPENSTACK_KEYSTONE_ADMIN_ROLES``
+----------------------------------
+
+.. versionadded:: 2015.1(Kilo)
+
+Default: ``["admin"]``
+
+The list of roles that have administrator privileges in this OpenStack
+installation. This check is very basic and essentially only works with
+keystone v2.0 and v3 with the default policy file. The setting assumes there
+is a common ``admin`` like role(s) across services. Example uses of this
+setting are:
+
+    * to rename the ``admin`` role to ``cloud-admin``
+    * allowing multiple roles to have administrative privileges, like
+      ``["admin", "cloud-admin", "net-op"]``
 
 
 ``OPENSTACK_KEYSTONE_MULTIDOMAIN_SUPPORT``
@@ -748,7 +802,10 @@ Default::
             'profile_support': None,
             'supported_provider_types': ["*"],
             'supported_vnic_types': ["*"],
-            'segmentation_id_range': {}
+            'segmentation_id_range': {},
+            'enable_fip_topology_check': True,
+            'default_ipv4_subnet_pool_label': None,
+            'default_ipv6_subnet_pool_label': None,
         }
 
 A dictionary of settings which can be used to enable optional services provided
@@ -886,6 +943,8 @@ types will be available to choose from.
 
 Example ``['normal', 'direct']``
 
+To disable VNIC type selection, set an empty list or None.
+
 ``segmentation_id_range``:
 
 .. versionadded:: 2014.2(Juno)
@@ -901,6 +960,43 @@ and maximum value will be the default for the provider network type.
 
 Example: ``{'vlan': [1024, 2048], 'gre': [4094, 65536]}``
 
+``enable_fip_topology_check``:
+
+Default: ``True``
+
+The Default Neutron implementation needs a router with a gateway to associate a
+FIP. So by default a topology check will be performed by horizon to list only
+VM ports attached to a network which is itself attached to a router with an
+external gateway. This is to prevent from setting a FIP to a port which will
+fail with an error.
+Some Neutron vendors do not require it. Some can even attach a FIP to any port
+(e.g.: OpenContrail) owned by a tenant.
+Set to False if you want to be able to associate a FIP to an instance on a
+subnet with no router if your Neutron backend allows it.
+
+.. versionadded:: 8.0.0(Liberty)
+
+``default_ipv4_subnet_pool_label``:
+
+.. versionadded:: 8.0.0(Liberty)
+
+Default: ``None`` (Disabled)
+
+Neutron can be configured with a default Subnet Pool to be used for IPv4
+subnet-allocation. Specify the label you wish to display in the Address pool
+selector on the create subnet step if you want to use this feature.
+
+``default_ipv6_subnet_pool_label``:
+
+.. versionadded:: 8.0.0(Liberty)
+
+Default: ``None`` (Disabled)
+
+Neutron can be configured with a default Subnet Pool to be used for IPv6
+subnet-allocation. Specify the label you wish to display in the Address pool
+selector on the create subnet step if you want to use this feature.
+
+You must set this to enable IPv6 Prefix Delegation in a PD-capable environment.
 
 ``OPENSTACK_SSL_CACERT``
 ------------------------
@@ -939,6 +1035,19 @@ The hash algorithm to use for authentication tokens. This must match the hash
 algorithm that the identity (Keystone) server and the auth_token middleware
 are using. Allowed values are the algorithms supported by Python's hashlib
 library.
+
+
+``OPENSTACK_TOKEN_HASH_ENABLED``
+--------------------------------
+
+.. versionadded:: 8.0.0(Liberty)
+
+Default: ``True``
+
+Hashing tokens from Keystone keeps the Horizon session data smaller, but it
+doesn't work in some cases when using PKI tokens.  Uncomment this value and
+set it to False if using PKI tokens and there are 401 errors due to token
+hashing.
 
 
 ``POLICY_FILES``
@@ -1009,25 +1118,96 @@ the web server.
 For example, if you're accessing the Dashboard via
 https://<your server>/dashboard, you would set this to ``"/dashboard/"``.
 
-Additionally, setting the ``"$webroot"`` SCSS variable is required. You
-can change this directly in
-``"openstack_dasbboard/static/dashboard/scss/_variables.scss"`` or in the
-``"_variables.scss"`` file in your custom theme. For more information on
-custom themes, see: ``"CUSTOM_THEME_PATH"``.
-
-For your convenience, a custom theme for only setting the web root has been
-provided see: ``"/horizon/openstack_dashboard/static/themes/webroot"``
-
 .. note::
 
     Additional settings may be required in the config files of your webserver
-    of choice. For example to make ``"/dashboard/"`` the web root in apache,
+    of choice. For example to make ``"/dashboard/"`` the web root in Apache,
     the ``"sites-available/horizon.conf"`` requires a couple of additional
     aliases set::
 
         Alias /dashboard/static %HORIZON_DIR%/static
 
         Alias /dashboard/media %HORIZON_DIR%/openstack_dashboard/static
+
+    Apache also requires changing your WSGIScriptAlias to reflect the desired
+    path.  For example, you'd replace ``/`` with ``/dashboard`` for the
+    alias.
+
+``STATIC_ROOT``
+---------------
+
+.. versionadded:: 8.0.0(Liberty)
+
+Default: ``<path_to_horizon>/static``
+
+The absolute path to the directory where static files are collected when
+collectstatic is run.
+
+For more information see:
+https://docs.djangoproject.com/en/1.7/ref/settings/#static-root
+
+``STATIC_URL``
+--------------
+
+.. versionadded:: 8.0.0(Liberty)
+
+Default: ``/static/``
+
+URL that refers to files in STATIC_ROOT.
+
+By default this value is ``WEBROOT/static/``.
+
+This value can be changed from the default. When changed, the alias in your
+webserver configuration should be updated to match.
+
+.. note::
+
+    The value for STATIC_URL must end in '/'.
+
+This value is also available in the scss namespace with the variable name
+$static_url.  Make sure you run ``python manage.py collectstatic`` and
+``python manage.py compress`` after any changes to this value in settings.py.
+
+For your convenience, a custom theme for only setting the static url has been
+provided see: ``"/horizon/openstack_dashboard/themes/webroot"``
+
+For more information see:
+https://docs.djangoproject.com/en/1.7/ref/settings/#static-url
+
+
+``DISALLOW_IFRAME_EMBED``
+-------------------------
+
+.. versionadded:: 8.0.0(Liberty)
+
+Default: ``True``
+
+This setting can be used to defend against Clickjacking and prevent Horizon from
+being embedded within an iframe. Legacy browsers are still vulnerable to a
+Cross-Frame Scripting (XFS) vulnerability, so this option allows extra security
+hardening where iframes are not used in deployment. When set to true, a
+``"frame-buster"`` script is inserted into the template header that prevents the
+web page from being framed and therefore defends against clickjacking.
+
+For more information see:
+http://tinyurl.com/anticlickjack
+
+.. note::
+
+  If your deployment requires the use of iframes, you can set this setting to
+  ``False`` to exclude the frame-busting code and allow iframe embedding.
+
+
+``OPENSTACK_NOVA_EXTENSIONS_BLACKLIST``
+---------------------------------------
+
+.. versionadded:: 8.0.0(Liberty)
+
+Default: ``[]``
+
+Ignore all listed Nova extensions, and behave as if they were unsupported.
+Can be used to selectively disable certain costly extensions for performance
+reasons.
 
 
 Django Settings (Partial)
@@ -1057,9 +1237,8 @@ IP address, that should be added. The setting may contain more than one entry.
 
 .. note::
 
-    ALLOWED_HOSTS is required for versions of Django 1.5 and newer.
-    If Horizon is running in production (DEBUG is False), set this
-    with the list of host/domain names that the application can serve.
+    ALLOWED_HOSTS is required. If Horizon is running in production (DEBUG is False),
+    set this with the list of host/domain names that the application can serve.
     For more information see:
     https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 
@@ -1173,7 +1352,7 @@ This is needed to expose static files from a plugin.
 .. versionadded:: 2014.2(Juno)
 
 A list of AngularJS modules to be loaded when Angular bootstraps. These modules
-are added as dependencies on the root Horizon application ``hz``.
+are added as dependencies on the root Horizon application ``horizon``.
 
 ``ADD_JS_FILES``
 ----------------------
@@ -1192,6 +1371,33 @@ loaded on every page. This is needed for AngularJS modules that are referenced i
 A list of javascript spec files to include for integration with the Jasmine spec runner.
 Jasmine is a behavior-driven development framework for testing JavaScript code.
 
+``ADD_SCSS_FILES``
+----------------------
+
+.. versionadded:: 8.0.0(Liberty)
+
+A list of scss files to be included in the compressed set of files that are
+loaded on every page. We recommend one scss file per dashboard, use @import if
+you need to include additional scss files for panels.
+
+.. _auto_discover_static_files:
+
+``AUTO_DISCOVER_STATIC_FILES``
+------------------------------
+
+.. versionadded:: 8.0.0(Liberty)
+
+If set to ``True``, JavaScript files and static angular html template files will be
+automatically discovered from the `static` folder in each apps listed in ADD_INSTALLED_APPS.
+
+JavaScript source files will be ordered based on naming convention: files with extension
+`.module.js` listed first, followed by other JavaScript source files.
+
+JavaScript files for testing will also be ordered based on naming convention: files with extension
+`.mock.js` listed first, followed by files with extension `.spec.js`.
+
+If ADD_JS_FILES and/or ADD_JS_SPEC_FILES are also specified, files manually listed there will be
+appended to the auto-discovered files.
 
 ``DISABLED``
 ------------
@@ -1234,11 +1440,11 @@ If set to ``True``, this dashboard will be set as the default dashboard.
 Examples
 --------
 
-To disable the Router dashboard locally, create a file
-``openstack_dashboard/local/enabled/_40_router.py`` with the following
+To disable a dashboard locally, create a file
+``openstack_dashboard/local/enabled/_40_dashboard-name.py`` with the following
 content::
 
-    DASHBOARD = 'router'
+    DASHBOARD = '<dashboard-name>'
     DISABLED = True
 
 To add a Tuskar-UI (Infrastructure) dashboard, you have to install it, and then

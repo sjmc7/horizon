@@ -70,7 +70,7 @@ def availability_zones(request):
                                          'zones.'))
     if not zone_list:
         zone_list.insert(0, ("", _("No availability zones found")))
-    elif len(zone_list) > 0:
+    elif len(zone_list) > 1:
         zone_list.insert(0, ("", _("Any Availability Zone")))
 
     return zone_list
@@ -80,7 +80,7 @@ class CreateForm(forms.SelfHandlingForm):
     name = forms.CharField(max_length=255, label=_("Volume Name"),
                            required=False)
     description = forms.CharField(max_length=255, widget=forms.Textarea(
-        attrs={'class': 'modal-body-fixed-width', 'rows': 4}),
+        attrs={'rows': 4}),
         label=_("Description"), required=False)
     volume_source_type = forms.ChoiceField(label=_("Volume Source"),
                                            required=False,
@@ -265,7 +265,7 @@ class CreateForm(forms.SelfHandlingForm):
     def __init__(self, request, *args, **kwargs):
         super(CreateForm, self).__init__(request, *args, **kwargs)
         volume_types = cinder.volume_type_list(request)
-        self.fields['type'].choices = [("", _("No volume type"))] + \
+        self.fields['type'].choices = [("no_type", _("No volume type"))] + \
                                       [(type.name, type.name)
                                        for type in volume_types]
 
@@ -319,7 +319,7 @@ class CreateForm(forms.SelfHandlingForm):
             source_type = data.get('volume_source_type', None)
             az = data.get('availability_zone', None) or None
             if (data.get("snapshot_source", None) and
-                    source_type in [None, 'snapshot_source']):
+                    source_type in ['', None, 'snapshot_source']):
                 # Create from Snapshot
                 snapshot = self.get_snapshot(request,
                                              data["snapshot_source"])
@@ -331,7 +331,7 @@ class CreateForm(forms.SelfHandlingForm):
                     raise ValidationError(error_message)
                 az = None
             elif (data.get("image_source", None) and
-                  source_type in [None, 'image_source']):
+                  source_type in ['', None, 'image_source']):
                 # Create from Snapshot
                 image = self.get_image(request,
                                        data["image_source"])
@@ -351,7 +351,7 @@ class CreateForm(forms.SelfHandlingForm):
                                      % min_disk_size)
                     raise ValidationError(error_message)
             elif (data.get("volume_source", None) and
-                  source_type in [None, 'volume_source']):
+                  source_type in ['', None, 'volume_source']):
                 # Create from volume
                 volume = self.get_volume(request, data["volume_source"])
                 volume_id = volume.id
@@ -378,6 +378,9 @@ class CreateForm(forms.SelfHandlingForm):
                 raise ValidationError(error_message)
 
             metadata = {}
+
+            if data['type'] == 'no_type':
+                data['type'] = ''
 
             volume = cinder.volume_create(request,
                                           data['size'],
@@ -707,8 +710,9 @@ class ExtendForm(forms.SelfHandlingForm):
         new_size = cleaned_data.get('new_size')
         orig_size = self.initial['orig_size']
         if new_size <= orig_size:
-            raise ValidationError(
-                _("New size must be greater than current size."))
+            error_msg = _("New size must be greater than current size.")
+            self._errors['new_size'] = self.error_class([error_msg])
+            return cleaned_data
 
         usages = quotas.tenant_limit_usages(self.request)
         availableGB = usages['maxTotalVolumeGigabytes'] - \
@@ -756,26 +760,21 @@ class RetypeForm(forms.SelfHandlingForm):
 
         try:
             volume_types = cinder.volume_type_list(request)
-            self.fields['volume_type'].choices = [(t.name, t.name)
-                                                  for t in volume_types]
-            self.fields['volume_type'].initial = self.initial['volume_type']
-
         except Exception:
             redirect_url = reverse("horizon:project:volumes:index")
             error_message = _('Unable to retrieve the volume type list.')
             exceptions.handle(request, error_message, redirect=redirect_url)
 
-    def clean_volume_type(self):
-        cleaned_volume_type = self.cleaned_data['volume_type']
         origin_type = self.initial['volume_type']
+        types_list = [(t.name, t.name)
+                      for t in volume_types
+                      if t.name != origin_type]
 
-        if cleaned_volume_type == origin_type:
-            error_message = _(
-                'New volume type must be different from '
-                'the original volume type "%s".') % cleaned_volume_type
-            raise ValidationError(error_message)
-
-        return cleaned_volume_type
+        if types_list:
+            types_list.insert(0, ("", _("Select a new volume type")))
+        else:
+            types_list.insert(0, ("", _("No other volume types available")))
+        self.fields['volume_type'].choices = sorted(types_list)
 
     def handle(self, request, data):
         volume_id = self.initial['id']

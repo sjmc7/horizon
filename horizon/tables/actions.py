@@ -13,6 +13,7 @@
 #    under the License.
 
 from collections import defaultdict
+from collections import OrderedDict
 import logging
 import types
 import warnings
@@ -21,7 +22,6 @@ from django.conf import settings
 from django.core import urlresolvers
 from django import shortcuts
 from django.template.loader import render_to_string  # noqa
-from django.utils.datastructures import SortedDict
 from django.utils.functional import Promise  # noqa
 from django.utils.http import urlencode  # noqa
 from django.utils.translation import pgettext_lazy
@@ -29,7 +29,6 @@ from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext_lazy
 import six
 
-from horizon import exceptions
 from horizon import messages
 from horizon.utils import functions
 from horizon.utils import html
@@ -364,7 +363,7 @@ class LinkAction(BaseAction):
     def get_ajax_update_url(self):
         table_url = self.table.get_absolute_url()
         params = urlencode(
-            SortedDict([("action", self.name), ("table", self.table.name)])
+            OrderedDict([("action", self.name), ("table", self.table.name)])
         )
         return "%s?%s" % (table_url, params)
 
@@ -518,6 +517,16 @@ class FilterAction(BaseAction):
                         choice[2] is True):
                     return True
         return False
+
+
+class NameFilterAction(FilterAction):
+    """A filter action for name property."""
+
+    def filter(self, table, items, filter_string):
+        """Naive case-insensitive search."""
+        query = filter_string.lower()
+        return [item for item in items
+                if query in item.name.lower()]
 
 
 class FixedFilterAction(FilterAction):
@@ -744,7 +753,7 @@ class BatchAction(Action):
         action_attr = getattr(self, "action_%s" % action_type)
         if self.use_action_method:
             action_attr = action_attr(count)
-        if isinstance(action_attr, (basestring, Promise)):
+        if isinstance(action_attr, (six.string_types, Promise)):
             action = action_attr
         else:
             toggle_selection = getattr(self, "current_%s_action" % action_type)
@@ -764,9 +773,9 @@ class BatchAction(Action):
             msgstr = action
         else:
             if action_type == "past":
-                msgstr = pgettext_lazy("past", "%(action)s %(data_type)s")
+                msgstr = pgettext_lazy(u"past", "%(action)s %(data_type)s")
             else:
-                msgstr = pgettext_lazy("present", "%(action)s %(data_type)s")
+                msgstr = pgettext_lazy(u"present", "%(action)s %(data_type)s")
         return msgstr % {'action': action, 'data_type': data_type}
 
     def action(self, request, datum_id):
@@ -803,9 +812,9 @@ class BatchAction(Action):
             datum_display = table.get_object_display(datum) or datum_id
             if not table._filter_action(self, request, datum):
                 action_not_allowed.append(datum_display)
-                LOG.info('Permission denied to %s: "%s"' %
-                         (self._get_action_name(past=True).lower(),
-                          datum_display))
+                LOG.warning('Permission denied to %s: "%s"' %
+                            (self._get_action_name(past=True).lower(),
+                             datum_display))
                 continue
             try:
                 self.action(request, datum_id)
@@ -819,12 +828,12 @@ class BatchAction(Action):
                 # Handle the exception but silence it since we'll display
                 # an aggregate error message later. Otherwise we'd get
                 # multiple error messages displayed to the user.
-                if getattr(ex, "_safe_message", None):
-                    ignore = False
-                else:
-                    ignore = True
-                    action_failure.append(datum_display)
-                exceptions.handle(request, ignore=ignore)
+                action_failure.append(datum_display)
+                action_description = (
+                    self._get_action_name(past=True).lower(), datum_display)
+                LOG.warning(
+                    'Action %(action)s Failed for %(reason)s', {
+                        'action': action_description, 'reason': ex})
 
         # Begin with success message class, downgrade to info if problems.
         success_message_level = messages.success

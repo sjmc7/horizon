@@ -427,7 +427,10 @@ class CreateProject(CommonQuotaWorkflow):
                                             **kwargs)
 
     def format_status_message(self, message):
-        return message % self.context.get('name', 'unknown project')
+        if "%s" in message:
+            return message % self.context.get('name', 'unknown project')
+        else:
+            return message
 
     def _create_project(self, request, data):
         # create the project
@@ -440,6 +443,10 @@ class CreateProject(CommonQuotaWorkflow):
                                                      enabled=data['enabled'],
                                                      domain=domain_id)
             return self.object
+        except exceptions.Conflict:
+            msg = _('Project name "%s" is already used.') % data['name']
+            self.failure_message = msg
+            return
         except Exception:
             exceptions.handle(request, ignore=True)
             return
@@ -478,7 +485,7 @@ class CreateProject(CommonQuotaWorkflow):
                               % {'users_to_add': users_to_add,
                                  'group_msg': group_msg})
         finally:
-            auth_utils.remove_project_cache(request.user.token.id)
+            auth_utils.remove_project_cache(request.user.token.unscoped_token)
 
     def _update_project_groups(self, request, data, project_id):
         # update project groups
@@ -535,7 +542,7 @@ class UpdateProjectInfoAction(CreateProjectInfoAction):
     def __init__(self, request, initial, *args, **kwargs):
         super(UpdateProjectInfoAction, self).__init__(
             request, initial, *args, **kwargs)
-        if initial['project_id'] == request.user.token.project['id']:
+        if initial['project_id'] == request.user.project_id:
             self.fields['enabled'].widget.attrs['disabled'] = True
             self.fields['enabled'].help_text = _(
                 'You cannot disable your current project')
@@ -595,7 +602,10 @@ class UpdateProject(CommonQuotaWorkflow):
                                             **kwargs)
 
     def format_status_message(self, message):
-        return message % self.context.get('name', 'unknown project')
+        if "%s" in message:
+            return message % self.context.get('name', 'unknown project')
+        else:
+            return message
 
     @memoized.memoized_method
     def _get_available_roles(self, request):
@@ -611,6 +621,10 @@ class UpdateProject(CommonQuotaWorkflow):
                 name=data['name'],
                 description=data['description'],
                 enabled=data['enabled'])
+        except exceptions.Conflict:
+            msg = _('Project name "%s" is already used.') % data['name']
+            self.failure_message = msg
+            return
         except Exception:
             exceptions.handle(request, ignore=True)
             return
@@ -735,7 +749,7 @@ class UpdateProject(CommonQuotaWorkflow):
                                  'group_msg': group_msg})
             return False
         finally:
-            auth_utils.remove_project_cache(request.user.token.id)
+            auth_utils.remove_project_cache(request.user.token.unscoped_token)
 
     def _update_project_groups(self, request, data, project_id, domain_id):
         # update project groups

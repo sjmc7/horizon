@@ -38,14 +38,14 @@ from heatclient import client as heat_client
 import httplib2
 from keystoneclient.v2_0 import client as keystone_client
 import mock
-import mox
+from mox3 import mox
 from neutronclient.v2_0 import client as neutron_client
 from novaclient.v2 import client as nova_client
 from openstack_auth import user
 from openstack_auth import utils
-from saharaclient import client as sahara_client
+import six
+from six import moves
 from swiftclient import client as swift_client
-from troveclient import client as trove_client
 
 from horizon import base
 from horizon import conf
@@ -227,8 +227,6 @@ class TestCase(horizon_helpers.TestCase):
         Asserts that the given response issued a 302 redirect without
         processing the view which is redirected to.
         """
-        assert (response.status_code / 100 == 3), \
-            "The response did not return a redirect."
         self.assertEqual(response._headers.get('location', None),
                          ('Location', settings.TESTSERVER + expected_url))
         self.assertEqual(response.status_code, 302)
@@ -262,7 +260,7 @@ class TestCase(horizon_helpers.TestCase):
             assert len(errors) == count, \
                 "%d errors were found on the form, %d expected" % \
                 (len(errors), count)
-            if message and message not in unicode(errors):
+            if message and message not in six.text_type(errors):
                 self.fail("Expected message not found, instead found: %s"
                           % ["%s: %s" % (key, [e for e in field_errors]) for
                              (key, field_errors) in errors.items()])
@@ -344,8 +342,6 @@ class APITestCase(TestCase):
         self._original_cinderclient = api.cinder.cinderclient
         self._original_heatclient = api.heat.heatclient
         self._original_ceilometerclient = api.ceilometer.ceilometerclient
-        self._original_troveclient = api.trove.troveclient
-        self._original_saharaclient = api.sahara.client
 
         # Replace the clients with our stubs.
         api.glance.glanceclient = lambda request: self.stub_glanceclient()
@@ -357,8 +353,6 @@ class APITestCase(TestCase):
                                self.stub_heatclient())
         api.ceilometer.ceilometerclient = (lambda request:
                                            self.stub_ceilometerclient())
-        api.trove.troveclient = lambda request: self.stub_troveclient()
-        api.sahara.client = lambda request: self.stub_saharaclient()
 
     def tearDown(self):
         super(APITestCase, self).tearDown()
@@ -369,8 +363,6 @@ class APITestCase(TestCase):
         api.cinder.cinderclient = self._original_cinderclient
         api.heat.heatclient = self._original_heatclient
         api.ceilometer.ceilometerclient = self._original_ceilometerclient
-        api.trove.troveclient = self._original_troveclient
-        api.sahara.client = self._original_saharaclient
 
     def stub_novaclient(self):
         if not hasattr(self, "novaclient"):
@@ -438,18 +430,6 @@ class APITestCase(TestCase):
             self.ceilometerclient = self.mox.\
                 CreateMock(ceilometer_client.Client)
         return self.ceilometerclient
-
-    def stub_troveclient(self):
-        if not hasattr(self, "troveclient"):
-            self.mox.StubOutWithMock(trove_client, 'Client')
-            self.troveclient = self.mox.CreateMock(trove_client.Client)
-        return self.troveclient
-
-    def stub_saharaclient(self):
-        if not hasattr(self, "saharaclient"):
-            self.mox.StubOutWithMock(sahara_client, 'Client')
-            self.saharaclient = self.mox.CreateMock(sahara_client.Client)
-        return self.saharaclient
 
 
 @unittest.skipUnless(os.environ.get('WITH_SELENIUM', False),
@@ -534,9 +514,6 @@ class PluginTestCase(TestCase):
         self.old_horizon_config = conf.HORIZON_CONFIG
         conf.HORIZON_CONFIG = conf.LazySettings()
         base.Horizon._urls()
-        # Trigger discovery, registration, and URLconf generation if it
-        # hasn't happened yet.
-        self.client.get("/")
         # Store our original dashboards
         self._discovered_dashboards = base.Horizon._registry.keys()
         # Gather up and store our original panels for each dashboard
@@ -553,7 +530,7 @@ class PluginTestCase(TestCase):
         del base.Horizon
         base.Horizon = base.HorizonSite()
         # Reload the convenience references to Horizon stored in __init__
-        reload(import_module("horizon"))
+        moves.reload_module(import_module("horizon"))
         # Re-register our original dashboards and panels.
         # This is necessary because autodiscovery only works on the first
         # import, and calling reload introduces innumerable additional
@@ -573,7 +550,7 @@ class PluginTestCase(TestCase):
         only for testing and should never be used on a live site.
         """
         urlresolvers.clear_url_caches()
-        reload(import_module(settings.ROOT_URLCONF))
+        moves.reload_module(import_module(settings.ROOT_URLCONF))
         base.Horizon._urls()
 
 

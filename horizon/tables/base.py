@@ -27,7 +27,6 @@ from django import template
 from django.template.defaultfilters import slugify  # noqa
 from django.template.defaultfilters import truncatechars  # noqa
 from django.template.loader import render_to_string
-from django.utils.datastructures import SortedDict
 from django.utils.html import escape
 from django.utils import http
 from django.utils.http import urlencode
@@ -49,6 +48,7 @@ PALETTE = termcolors.PALETTES[termcolors.DEFAULT_PALETTE]
 STRING_SEPARATOR = "__"
 
 
+@six.python_2_unicode_compatible
 class Column(html.HTMLElement):
     """A class which represents a single column in a :class:`.DataTable`.
 
@@ -163,7 +163,7 @@ class Column(html.HTMLElement):
        A callable to get the HTML attributes of a column cell depending
        on the data. For example, to add additional description or help
        information for data in a column cell (e.g. in Images panel, for the
-       column 'format'):
+       column 'format')::
 
             helpText = {
               'ARI':'Amazon Ramdisk Image'
@@ -284,7 +284,7 @@ class Column(html.HTMLElement):
             self.transform = transform
             self.name = "<%s callable>" % transform.__name__
         else:
-            self.transform = unicode(transform)
+            self.transform = six.text_type(transform)
             self.name = self.transform
 
         # Empty string is a valid value for verbose_name
@@ -335,8 +335,8 @@ class Column(html.HTMLElement):
         if self.link is not None:
             self.classes.append('anchor')
 
-    def __unicode__(self):
-        return unicode(self.verbose_name)
+    def __str__(self):
+        return six.text_type(self.verbose_name)
 
     def __repr__(self):
         return '<%s: %s>' % (self.__class__.__name__, self.name)
@@ -395,9 +395,10 @@ class Column(html.HTMLElement):
                 except Exception:
                     msg = ("Filter '%(filter)s' failed with data "
                            "'%(data)s' on column '%(col_name)s'")
-                    LOG.warning(msg, {'filter': filter_func.func_name,
-                                      'data': data,
-                                      'col_name': unicode(self.verbose_name)})
+                    args = {'filter': filter_func.__name__,
+                            'data': data,
+                            'col_name': six.text_type(self.verbose_name)}
+                    LOG.warning(msg, args)
 
         if data and self.truncate:
             data = truncatechars(data, self.truncate)
@@ -485,7 +486,7 @@ class Row(html.HTMLElement):
 
     .. attribute:: cells
 
-        The cells belonging to this row stored in a ``SortedDict`` object.
+        The cells belonging to this row stored in a ``OrderedDict`` object.
         This attribute is populated during instantiation.
 
     .. attribute:: status
@@ -553,7 +554,7 @@ class Row(html.HTMLElement):
         for column in table.columns.values():
             cell = table._meta.cell_class(datum, column, self)
             cells.append((column.name or column.auto, cell))
-        self.cells = SortedDict(cells)
+        self.cells = collections.OrderedDict(cells)
 
         if self.ajax:
             interval = conf.HORIZON_CONFIG['ajax_poll_interval']
@@ -608,7 +609,7 @@ class Row(html.HTMLElement):
 
     def get_ajax_update_url(self):
         table_url = self.table.get_absolute_url()
-        params = urlencode(SortedDict([
+        params = urlencode(collections.OrderedDict([
             ("action", self.ajax_action_name),
             ("table", self.table.name),
             ("obj_id", self.table.get_object_id(self.datum))
@@ -649,10 +650,14 @@ class Cell(html.HTMLElement):
         self.inline_edit_mod = False
         # add tooltip to cells if the truncate variable is set
         if column.truncate:
+            # NOTE(tsufiev): trying to pull cell raw data out of datum for
+            # those columns where truncate is False leads to multiple errors
+            # in unit tests
             data = getattr(datum, column.name, '') or ''
             if len(data) > column.truncate:
                 self.attrs['data-toggle'] = 'tooltip'
                 self.attrs['title'] = data
+                self.attrs['data-selenium'] = data
         self.data = self.get_data(datum, column, row)
 
     def get_data(self, datum, column, row):
@@ -664,7 +669,7 @@ class Cell(html.HTMLElement):
                 widget = forms.CheckboxInput(check_test=lambda value: False)
                 # Convert value to string to avoid accidental type conversion
                 data = widget.render('object_ids',
-                                     unicode(table.get_object_id(datum)),
+                                     six.text_type(table.get_object_id(datum)),
                                      {'class': 'table-row-multi-select'})
             table._data_cache[column][table.get_object_id(datum)] = data
         elif column.auto == "form_field":
@@ -674,7 +679,7 @@ class Cell(html.HTMLElement):
 
             widget_name = "%s__%s" % \
                 (column.name,
-                 unicode(table.get_object_id(datum)))
+                 six.text_type(table.get_object_id(datum)))
 
             # Create local copy of attributes, so it don't change column
             # class form_field_attributes
@@ -710,7 +715,7 @@ class Cell(html.HTMLElement):
     @property
     def id(self):
         return ("%s__%s" % (self.column.name,
-                unicode(self.row.table.get_object_id(self.datum))))
+                six.text_type(self.row.table.get_object_id(self.datum))))
 
     @property
     def value(self):
@@ -741,7 +746,7 @@ class Cell(html.HTMLElement):
             data = mark_safe('<a href="%s" %s>%s</a>' % (
                              (escape(self.url),
                               link_attrs,
-                              escape(unicode(data)))))
+                              escape(six.text_type(data)))))
         return data
 
     @property
@@ -763,10 +768,10 @@ class Cell(html.HTMLElement):
         if self.column.status or \
                 self.column.name in self.column.table._meta.status_columns:
             # returns the first matching status found
-            data_status_lower = unicode(
+            data_status_lower = six.text_type(
                 self.column.get_raw_data(self.datum)).lower()
             for status_name, status_value in self.column.status_choices:
-                if unicode(status_name).lower() == data_status_lower:
+                if six.text_type(status_name).lower() == data_status_lower:
                     self._status = status_value
                     return self._status
         self._status = None
@@ -799,7 +804,7 @@ class Cell(html.HTMLElement):
     def get_ajax_update_url(self):
         column = self.column
         table_url = column.table.get_absolute_url()
-        params = urlencode(SortedDict([
+        params = urlencode(collections.OrderedDict([
             ("action", self.row.ajax_cell_action_name),
             ("table", column.table.name),
             ("cell_name", column.name),
@@ -994,7 +999,7 @@ class DataTableOptions(object):
         filter_actions = [action for action in self.table_actions if
                           issubclass(action, FilterAction)]
         if len(filter_actions) > 1:
-            raise NotImplementedError("Multiple filter actions is not "
+            raise NotImplementedError("Multiple filter actions are not "
                                       "currently supported.")
         self.filter = getattr(options, 'filter', len(filter_actions) > 0)
         if len(filter_actions) == 1:
@@ -1011,9 +1016,9 @@ class DataTableOptions(object):
                                          'row_actions_row.html')
         self.table_actions_template = \
             'horizon/common/_data_table_table_actions.html'
-        self.context_var_name = unicode(getattr(options,
-                                                'context_var_name',
-                                                'table'))
+        self.context_var_name = six.text_type(getattr(options,
+                                                      'context_var_name',
+                                                      'table'))
         self.actions_column = getattr(options,
                                       'actions_column',
                                       len(self.row_actions) > 0)
@@ -1051,32 +1056,35 @@ class DataTableMetaclass(type):
     def __new__(mcs, name, bases, attrs):
         # Process options from Meta
         class_name = name
-        attrs["_meta"] = opts = DataTableOptions(attrs.get("Meta", None))
+        dt_attrs = {}
+        dt_attrs["_meta"] = opts = DataTableOptions(attrs.get("Meta", None))
 
         # Gather columns; this prevents the column from being an attribute
         # on the DataTable class and avoids naming conflicts.
         columns = []
         for attr_name, obj in attrs.items():
-            if issubclass(type(obj), (opts.column_class, Column)):
-                column_instance = attrs.pop(attr_name)
+            if isinstance(obj, (opts.column_class, Column)):
+                column_instance = attrs[attr_name]
                 column_instance.name = attr_name
                 column_instance.classes.append('normal_column')
                 columns.append((attr_name, column_instance))
+            else:
+                dt_attrs[attr_name] = obj
         columns.sort(key=lambda x: x[1].creation_counter)
 
         # Iterate in reverse to preserve final order
-        for base in bases[::-1]:
+        for base in reversed(bases):
             if hasattr(base, 'base_columns'):
-                columns = base.base_columns.items() + columns
-        attrs['base_columns'] = SortedDict(columns)
+                columns[0:0] = base.base_columns.items()
+        dt_attrs['base_columns'] = collections.OrderedDict(columns)
 
         # If the table is in a ResourceBrowser, the column number must meet
         # these limits because of the width of the browser.
         if opts.browser_table == "navigation" and len(columns) > 3:
-            raise ValueError("You can only assign three column to %s."
+            raise ValueError("You can assign at most three columns to %s."
                              % class_name)
         if opts.browser_table == "content" and len(columns) > 2:
-            raise ValueError("You can only assign two columns to %s."
+            raise ValueError("You can assign at most two columns to %s."
                              % class_name)
 
         if opts.columns:
@@ -1086,7 +1094,7 @@ class DataTableMetaclass(type):
                 if column_data[0] not in opts.columns:
                     columns.pop(columns.index(column_data))
             # Re-order based on declared columns
-            columns.sort(key=lambda x: attrs['_meta'].columns.index(x[0]))
+            columns.sort(key=lambda x: dt_attrs['_meta'].columns.index(x[0]))
         # Add in our auto-generated columns
         if opts.multi_select and opts.browser_table != "navigation":
             multi_select = opts.column_class("multi_select",
@@ -1101,7 +1109,7 @@ class DataTableMetaclass(type):
             actions_column.classes.append('actions_column')
             columns.append(("actions", actions_column))
         # Store this set of columns internally so we can copy them per-instance
-        attrs['_columns'] = SortedDict(columns)
+        dt_attrs['_columns'] = collections.OrderedDict(columns)
 
         # Gather and register actions for later access since we only want
         # to instantiate them once.
@@ -1109,17 +1117,18 @@ class DataTableMetaclass(type):
         actions = list(set(opts.row_actions) | set(opts.table_actions) |
                        set(opts.table_actions_menu))
         actions.sort(key=attrgetter('name'))
-        actions_dict = SortedDict([(action.name, action())
-                                   for action in actions])
-        attrs['base_actions'] = actions_dict
+        actions_dict = collections.OrderedDict([(action.name, action())
+                                                for action in actions])
+        dt_attrs['base_actions'] = actions_dict
         if opts._filter_action:
             # Replace our filter action with the instantiated version
             opts._filter_action = actions_dict[opts._filter_action.name]
 
         # Create our new class!
-        return type.__new__(mcs, name, bases, attrs)
+        return type.__new__(mcs, name, bases, dt_attrs)
 
 
+@six.python_2_unicode_compatible
 @six.add_metaclass(DataTableMetaclass)
 class DataTable(object):
     """A class which defines a table with all data and associated actions.
@@ -1162,7 +1171,7 @@ class DataTable(object):
             column = copy.copy(_column)
             column.table = self
             columns.append((key, column))
-        self.columns = SortedDict(columns)
+        self.columns = collections.OrderedDict(columns)
         self._populate_data_cache()
 
         # Associate these actions with this table
@@ -1172,8 +1181,8 @@ class DataTable(object):
         self.needs_summary_row = any([col.summation
                                       for col in self.columns.values()])
 
-    def __unicode__(self):
-        return unicode(self._meta.verbose_name)
+    def __str__(self):
+        return six.text_type(self._meta.verbose_name)
 
     def __repr__(self):
         return '<%s: %s>' % (self.__class__.__name__, self._meta.name)
@@ -1312,13 +1321,13 @@ class DataTable(object):
 
         Uses :meth:`~horizon.tables.DataTable.get_object_id` internally.
         """
-        if not isinstance(lookup, unicode):
-            lookup = unicode(str(lookup), 'utf-8')
+        if not isinstance(lookup, six.text_type):
+            lookup = six.text_type(str(lookup), 'utf-8')
         matches = []
         for datum in self.data:
             obj_id = self.get_object_id(datum)
-            if not isinstance(obj_id, unicode):
-                obj_id = unicode(str(obj_id), 'utf-8')
+            if not isinstance(obj_id, six.text_type):
+                obj_id = six.text_type(str(obj_id), 'utf-8')
             if obj_id == lookup:
                 matches.append(datum)
         if len(matches) > 1:
@@ -1442,11 +1451,12 @@ class DataTable(object):
         """
         if action_string:
             bits = action_string.split(STRING_SEPARATOR)
-            bits.reverse()
-            table = bits.pop()
-            action = bits.pop()
+            table = bits[0]
+            action = bits[1]
             try:
-                object_id = bits.pop()
+                object_id = STRING_SEPARATOR.join(bits[2:])
+                if object_id == '':
+                    object_id = None
             except IndexError:
                 object_id = None
             return table, action, object_id

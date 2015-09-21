@@ -24,6 +24,7 @@ from openstack_dashboard import policy
 
 ENABLE = 0
 DISABLE = 1
+KEYSTONE_V2_ENABLED = api.keystone.VERSIONS.active < 3
 
 
 class CreateUserLink(tables.LinkAction):
@@ -192,14 +193,20 @@ class UpdateCell(tables.UpdateAction):
         try:
             user_obj = datum
             setattr(user_obj, cell_name, new_cell_value)
-            api.keystone.user_update(
-                request,
-                user_obj,
-                name=user_obj.name,
-                email=user_obj.email,
-                enabled=user_obj.enabled,
-                project=user_obj.project_id,
-                password=None)
+            kwargs = {}
+            attr_to_keyword_map = {
+                'name': 'name',
+                'description': 'description',
+                'email': 'email',
+                'enabled': 'enabled',
+                'project_id': 'project'
+            }
+            for key in attr_to_keyword_map:
+                value = getattr(user_obj, key, None)
+                keyword_name = attr_to_keyword_map[key]
+                if value is not None:
+                    kwargs[keyword_name] = value
+            api.keystone.user_update(request, user_obj, **kwargs)
 
         except horizon_exceptions.Conflict:
             message = _("This name is already taken.")
@@ -221,8 +228,16 @@ class UsersTable(tables.DataTable):
                          verbose_name=_('User Name'),
                          form_field=forms.CharField(),
                          update_action=UpdateCell)
-    email = tables.Column('email', verbose_name=_('Email'),
-                          form_field=forms.CharField(required=False),
+    description = tables.Column(lambda obj: getattr(obj, 'description', None),
+                                verbose_name=_('Description'),
+                                hidden=KEYSTONE_V2_ENABLED,
+                                form_field=forms.CharField(
+                                    widget=forms.Textarea(attrs={'rows': 4}),
+                                    required=False),
+                                update_action=UpdateCell)
+    email = tables.Column(lambda obj: getattr(obj, 'email', None),
+                          verbose_name=_('Email'),
+                          form_field=forms.EmailField(required=False),
                           update_action=UpdateCell,
                           filters=(lambda v: defaultfilters
                                    .default_if_none(v, ""),

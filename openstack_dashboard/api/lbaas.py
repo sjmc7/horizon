@@ -14,7 +14,7 @@
 
 from __future__ import absolute_import
 
-from django.utils.datastructures import SortedDict
+from collections import OrderedDict
 from django.utils.translation import ugettext_lazy as _
 
 from horizon import messages
@@ -37,6 +37,8 @@ class Pool(neutron.NeutronAPIDictWrapper):
     def __init__(self, apiresource):
         if 'provider' not in apiresource:
             apiresource['provider'] = None
+        apiresource['admin_state'] = \
+            'UP' if apiresource['admin_state_up'] else 'DOWN'
         super(Pool, self).__init__(apiresource)
 
 
@@ -44,6 +46,8 @@ class Member(neutron.NeutronAPIDictWrapper):
     """Wrapper for neutron load balancer member."""
 
     def __init__(self, apiresource):
+        apiresource['admin_state'] = \
+            'UP' if apiresource['admin_state_up'] else 'DOWN'
         super(Member, self).__init__(apiresource)
 
 
@@ -58,6 +62,8 @@ class PoolMonitor(neutron.NeutronAPIDictWrapper):
     """Wrapper for neutron load balancer pool health monitor."""
 
     def __init__(self, apiresource):
+        apiresource['admin_state'] = \
+            'UP' if apiresource['admin_state_up'] else 'DOWN'
         super(PoolMonitor, self).__init__(apiresource)
 
 
@@ -141,7 +147,7 @@ def pool_create(request, **kwargs):
     return Pool(pool)
 
 
-def _get_vip(request, pool, vip_dict, expand_name_only=False):
+def _get_vip(request, pool, vip_dict):
     if pool['vip_id'] is not None:
         try:
             if vip_dict:
@@ -152,8 +158,6 @@ def _get_vip(request, pool, vip_dict, expand_name_only=False):
             messages.warning(request, _("Unable to get VIP for pool "
                                         "%(pool)s.") % {"pool": pool["id"]})
             vip = Vip({'id': pool['vip_id'], 'name': ''})
-        if expand_name_only:
-            vip = vip.name_or_id
         return vip
     else:
         return None
@@ -167,16 +171,14 @@ def _pool_list(request, expand_subnet=False, expand_vip=False, **kwargs):
     pools = neutronclient(request).list_pools(**kwargs).get('pools')
     if expand_subnet:
         subnets = neutron.subnet_list(request)
-        subnet_dict = SortedDict((s.id, s) for s in subnets)
+        subnet_dict = OrderedDict((s.id, s) for s in subnets)
         for p in pools:
-            subnet = subnet_dict.get(p['subnet_id'])
-            p['subnet_name'] = subnet.cidr if subnet else None
+            p['subnet'] = subnet_dict.get(p['subnet_id'])
     if expand_vip:
         vips = vip_list(request)
-        vip_dict = SortedDict((v.id, v) for v in vips)
+        vip_dict = OrderedDict((v.id, v) for v in vips)
         for p in pools:
-            p['vip_name'] = _get_vip(request, p, vip_dict,
-                                     expand_name_only=True)
+            p['vip'] = _get_vip(request, p, vip_dict)
     return [Pool(p) for p in pools]
 
 
@@ -202,21 +204,32 @@ def _pool_get(request, pool_id, expand_resource=False):
         except Exception:
             messages.warning(request, _("Unable to get subnet for pool "
                                         "%(pool)s.") % {"pool": pool_id})
-        pool['vip'] = _get_vip(request, pool, vip_dict=None,
-                               expand_name_only=False)
-        try:
-            pool['members'] = _member_list(request, expand_pool=False,
-                                           pool_id=pool_id)
-        except Exception:
-            messages.warning(request, _("Unable to get members for pool "
-                                        "%(pool)s.") % {"pool": pool_id})
-        try:
-            pool['health_monitors'] = pool_health_monitor_list(
-                request, id=pool['health_monitors'])
-        except Exception:
-            messages.warning(request,
-                             _("Unable to get health monitors "
-                               "for pool %(pool)s.") % {"pool": pool_id})
+        pool['vip'] = _get_vip(request, pool, vip_dict=None)
+        # Check here to reduce the additional request if pool['members'] is
+        # empty
+        if pool['members']:
+            try:
+                pool['members'] = _member_list(request, expand_pool=False,
+                                               pool_id=pool_id)
+            except Exception:
+                messages.warning(request, _("Unable to get members for pool "
+                                            "%(pool)s.") % {"pool": pool_id})
+        # If the filter to get health monitors list is empty, all health
+        # monitors will be returned in the tenant.
+        if pool['health_monitors']:
+            monitors = []
+            for monitor_id in pool['health_monitors']:
+                try:
+                    monitors.append(_pool_health_monitor_get(request,
+                                                             monitor_id,
+                                                             False))
+                except Exception:
+                    messages.warning(request,
+                                     _("Unable to get health monitor "
+                                       "%(monitor_id)s for pool %(pool)s.")
+                                     % {"pool": pool_id,
+                                        "monitor_id": monitor_id})
+            pool['health_monitors'] = monitors
     return Pool(pool)
 
 
@@ -281,7 +294,10 @@ def _pool_health_monitor_get(request, monitor_id, expand_resource=False):
                                                   ).get('health_monitor')
     if expand_resource:
         pool_ids = [p['pool_id'] for p in monitor['pools']]
-        monitor['pools'] = _pool_list(request, id=pool_ids)
+        # If the filter to get pools list is empty, all pools will be
+        # returned in the tenant.
+        if pool_ids:
+            monitor['pools'] = _pool_list(request, id=pool_ids)
     return PoolMonitor(monitor)
 
 
@@ -325,7 +341,7 @@ def _member_list(request, expand_pool, **kwargs):
     members = neutronclient(request).list_members(**kwargs).get('members')
     if expand_pool:
         pools = _pool_list(request)
-        pool_dict = SortedDict((p.id, p) for p in pools)
+        pool_dict = OrderedDict((p.id, p) for p in pools)
         for m in members:
             m['pool_name'] = pool_dict.get(m['pool_id']).name_or_id
     return [Member(m) for m in members]

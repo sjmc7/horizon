@@ -22,6 +22,9 @@ from django.contrib.auth.models import User  # noqa
 from django.core.exceptions import ImproperlyConfigured  # noqa
 from django.core import urlresolvers
 from django.utils.importlib import import_module  # noqa
+from six import moves
+
+import six
 
 import horizon
 from horizon import base
@@ -84,11 +87,11 @@ class BaseHorizonTests(test.TestCase):
         # hasn't happened yet.
         base.Horizon._urls()
         # Store our original dashboards
-        self._discovered_dashboards = base.Horizon._registry.keys()
+        self._discovered_dashboards = list(base.Horizon._registry)
         # Gather up and store our original panels for each dashboard
         self._discovered_panels = {}
         for dash in self._discovered_dashboards:
-            panels = base.Horizon._registry[dash]._registry.keys()
+            panels = list(base.Horizon._registry[dash]._registry)
             self._discovered_panels[dash] = panels
 
     def tearDown(self):
@@ -101,7 +104,7 @@ class BaseHorizonTests(test.TestCase):
         del base.Horizon
         base.Horizon = base.HorizonSite()
         # Reload the convenience references to Horizon stored in __init__
-        reload(import_module("horizon"))
+        moves.reload_module(import_module("horizon"))
         # Re-register our original dashboards and panels.
         # This is necessary because autodiscovery only works on the first
         # import, and calling reload introduces innumerable additional
@@ -120,7 +123,7 @@ class BaseHorizonTests(test.TestCase):
         only for testing and should never be used on a live site.
         """
         urlresolvers.clear_url_caches()
-        reload(import_module(settings.ROOT_URLCONF))
+        moves.reload_module(import_module(settings.ROOT_URLCONF))
         base.Horizon._urls()
 
 
@@ -162,7 +165,7 @@ class HorizonTests(BaseHorizonTests):
             horizon.get_dashboard(MyDash)
 
     def test_site(self):
-        self.assertEqual("Horizon", unicode(base.Horizon))
+        self.assertEqual("Horizon", six.text_type(base.Horizon))
         self.assertEqual("<Site: horizon>", repr(base.Horizon))
         dash = base.Horizon.get_dashboard('cats')
         self.assertEqual(dash, base.Horizon.get_default_dashboard())
@@ -369,11 +372,12 @@ class CustomPanelTests(BaseHorizonTests):
     """
 
     def setUp(self):
+        super(CustomPanelTests, self).setUp()
         settings.HORIZON_CONFIG['customization_module'] = \
             'horizon.test.customization.cust_test1'
         # refresh config
         conf.HORIZON_CONFIG._setup()
-        super(CustomPanelTests, self).setUp()
+        self._reload_urls()
 
     def tearDown(self):
         # Restore dash
@@ -473,11 +477,11 @@ class RbacHorizonTests(test.TestCase):
         # hasn't happened yet.
         base.Horizon._urls()
         # Store our original dashboards
-        self._discovered_dashboards = base.Horizon._registry.keys()
+        self._discovered_dashboards = list(base.Horizon._registry)
         # Gather up and store our original panels for each dashboard
         self._discovered_panels = {}
         for dash in self._discovered_dashboards:
-            panels = base.Horizon._registry[dash]._registry.keys()
+            panels = list(base.Horizon._registry[dash]._registry)
             self._discovered_panels[dash] = panels
 
     def tearDown(self):
@@ -490,7 +494,7 @@ class RbacHorizonTests(test.TestCase):
         del base.Horizon
         base.Horizon = base.HorizonSite()
         # Reload the convenience references to Horizon stored in __init__
-        reload(import_module("horizon"))
+        moves.reload_module(import_module("horizon"))
 
         # Reset Cats and Dogs default_panel to default values
         Cats.default_panel = 'kittens'

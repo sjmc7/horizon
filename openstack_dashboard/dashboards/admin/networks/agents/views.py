@@ -44,6 +44,7 @@ class AddView(forms.ModalFormView):
         context['network_id'] = self.kwargs['network_id']
         args = (self.kwargs['network_id'],)
         context['submit_url'] = reverse(self.submit_url, args=args)
+        context['cancel_url'] = reverse(self.failure_url, args=args)
         return context
 
     def get_initial(self):
@@ -53,7 +54,7 @@ class AddView(forms.ModalFormView):
         try:
             network = api.neutron.network_get(self.request, network_id)
             initial.update({"network_id": network_id,
-                            "network_name": network.name,
+                            "network_name": network.name_or_id,
                             "agents": agents})
             return initial
         except Exception:

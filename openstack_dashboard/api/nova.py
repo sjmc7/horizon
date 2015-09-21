@@ -25,9 +25,10 @@ import logging
 from django.conf import settings
 from django.utils.functional import cached_property  # noqa
 from django.utils.translation import ugettext_lazy as _
+import six
 
+from novaclient import client as nova_client
 from novaclient import exceptions as nova_exceptions
-from novaclient.v2 import client as nova_client
 from novaclient.v2.contrib import instance_action as nova_instance_action
 from novaclient.v2.contrib import list_extensions as nova_list_extensions
 from novaclient.v2 import security_group_rules as nova_rules
@@ -160,7 +161,7 @@ class NovaUsage(base.APIResourceWrapper):
     def get_summary(self):
         return {'instances': self.total_active_instances,
                 'memory_mb': self.memory_mb,
-                'vcpus': getattr(self, "total_vcpus_usage", 0),
+                'vcpus': self.vcpus,
                 'vcpu_hours': self.vcpu_hours,
                 'local_gb': self.local_gb,
                 'disk_gb_hours': self.disk_gb_hours,
@@ -177,7 +178,7 @@ class NovaUsage(base.APIResourceWrapper):
 
     @property
     def vcpu_hours(self):
-        return getattr(self, "total_hours", 0)
+        return getattr(self, "total_vcpus_usage", 0)
 
     @property
     def local_gb(self):
@@ -218,22 +219,27 @@ class SecurityGroup(base.APIResourceWrapper):
         return self._apiresource.to_dict()
 
 
+@six.python_2_unicode_compatible
 class SecurityGroupRule(base.APIResourceWrapper):
     """Wrapper for individual rules in a SecurityGroup."""
 
     _attrs = ['id', 'ip_protocol', 'from_port', 'to_port', 'ip_range', 'group']
 
-    def __unicode__(self):
+    def __str__(self):
         if 'name' in self.group:
             vals = {'from': self.from_port,
                     'to': self.to_port,
+                    'ip_protocol': self.ip_protocol,
                     'group': self.group['name']}
-            return _('ALLOW %(from)s:%(to)s from %(group)s') % vals
+            return (_('ALLOW %(from)s:%(to)s/%(ip_protocol)s from %(group)s') %
+                    vals)
         else:
             vals = {'from': self.from_port,
                     'to': self.to_port,
+                    'ip_protocol': self.ip_protocol,
                     'cidr': self.ip_range['cidr']}
-            return _('ALLOW %(from)s:%(to)s from %(cidr)s') % vals
+            return (_('ALLOW %(from)s:%(to)s/%(ip_protocol)s from %(cidr)s') %
+                    vals)
 
     # The following attributes are defined to keep compatibility with Neutron
     @property
@@ -439,7 +445,7 @@ class FloatingIpManager(network_base.FloatingIpManager):
 def novaclient(request):
     insecure = getattr(settings, 'OPENSTACK_SSL_NO_VERIFY', False)
     cacert = getattr(settings, 'OPENSTACK_SSL_CACERT', None)
-    c = nova_client.Client(request.user.username,
+    c = nova_client.Client(2, request.user.username,
                            request.user.token.id,
                            project_id=request.user.tenant_id,
                            auth_url=base.url_for(request, 'compute'),
@@ -642,6 +648,14 @@ def server_suspend(request, instance_id):
 
 def server_resume(request, instance_id):
     novaclient(request).servers.resume(instance_id)
+
+
+def server_shelve(request, instance_id):
+    novaclient(request).servers.shelve(instance_id)
+
+
+def server_unshelve(request, instance_id):
+    novaclient(request).servers.unshelve(instance_id)
 
 
 def server_reboot(request, instance_id, soft_reboot=False):
@@ -917,9 +931,29 @@ def remove_host_from_aggregate(request, aggregate_id, host):
     return novaclient(request).aggregates.remove_host(aggregate_id, host)
 
 
+def interface_attach(request,
+                     server, port_id=None, net_id=None, fixed_ip=None):
+    return novaclient(request).servers.interface_attach(server,
+                                                        port_id,
+                                                        net_id,
+                                                        fixed_ip)
+
+
+def interface_detach(request, server, port_id):
+    return novaclient(request).servers.interface_detach(server, port_id)
+
+
 @memoized
 def list_extensions(request):
-    return nova_list_extensions.ListExtManager(novaclient(request)).show_all()
+    """List all nova extensions, except the ones in the blacklist."""
+
+    blacklist = set(getattr(settings,
+                            'OPENSTACK_NOVA_EXTENSIONS_BLACKLIST', []))
+    return [
+        extension for extension in
+        nova_list_extensions.ListExtManager(novaclient(request)).show_all()
+        if extension.name not in blacklist
+    ]
 
 
 @memoized
@@ -951,3 +985,8 @@ def can_set_mount_point():
     hypervisor_features = getattr(
         settings, "OPENSTACK_HYPERVISOR_FEATURES", {})
     return hypervisor_features.get("can_set_mount_point", False)
+
+
+def requires_keypair():
+    features = getattr(settings, 'OPENSTACK_HYPERVISOR_FEATURES', {})
+    return features.get('requires_keypair', False)

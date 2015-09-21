@@ -21,15 +21,14 @@ from __future__ import absolute_import
 
 import collections
 import logging
-import warnings
 
 import netaddr
 
 from django.conf import settings
-from django.utils.datastructures import SortedDict
 from django.utils.translation import ugettext_lazy as _
 from neutronclient.common import exceptions as neutron_exc
 from neutronclient.v2_0 import client as neutron_client
+import six
 
 from horizon import messages
 from horizon.utils.memoized import memoized  # noqa
@@ -50,6 +49,25 @@ ROUTER_INTERFACE_OWNERS = (
     'network:router_interface',
     'network:router_interface_distributed'
 )
+
+
+def _init_apiresource(apiresource):
+    """Handle common initialization of apiresource.
+
+        Note: the dictionary is modified in place.
+    """
+
+    if apiresource['admin_state_up']:
+        apiresource['admin_state'] = 'UP'
+    else:
+        apiresource['admin_state'] = 'DOWN'
+
+    # Django cannot handle a key name with ':', so use '__'.
+    apiresource.update({
+        key.replace(':', '__'): value
+        for key, value in apiresource.items()
+        if ':' in key
+    })
 
 
 class NeutronAPIDictWrapper(base.APIDictWrapper):
@@ -77,8 +95,7 @@ class Agent(NeutronAPIDictWrapper):
     """Wrapper for neutron agents."""
 
     def __init__(self, apiresource):
-        apiresource['admin_state'] = \
-            'UP' if apiresource['admin_state_up'] else 'DOWN'
+        _init_apiresource(apiresource)
         super(Agent, self).__init__(apiresource)
 
 
@@ -86,12 +103,7 @@ class Network(NeutronAPIDictWrapper):
     """Wrapper for neutron Networks."""
 
     def __init__(self, apiresource):
-        apiresource['admin_state'] = \
-            'UP' if apiresource['admin_state_up'] else 'DOWN'
-        # Django cannot handle a key name with ':', so use '__'
-        for key in apiresource.keys():
-            if ':' in key:
-                apiresource['__'.join(key.split(':'))] = apiresource[key]
+        _init_apiresource(apiresource)
         super(Network, self).__init__(apiresource)
 
     def to_dict(self):
@@ -108,16 +120,15 @@ class Subnet(NeutronAPIDictWrapper):
         super(Subnet, self).__init__(apiresource)
 
 
+class SubnetPool(NeutronAPIDictWrapper):
+    """Wrapper for neutron subnetpools."""
+
+
 class Port(NeutronAPIDictWrapper):
     """Wrapper for neutron ports."""
 
     def __init__(self, apiresource):
-        # Django cannot handle a key name with ':', so use '__'
-        for key in apiresource.keys():
-            if ':' in key:
-                apiresource['__'.join(key.split(':'))] = apiresource[key]
-        apiresource['admin_state'] = \
-            'UP' if apiresource['admin_state_up'] else 'DOWN'
+        _init_apiresource(apiresource)
         if 'mac_learning_enabled' in apiresource:
             apiresource['mac_state'] = \
                 ON_STATE if apiresource['mac_learning_enabled'] else OFF_STATE
@@ -137,9 +148,17 @@ class Router(NeutronAPIDictWrapper):
     """Wrapper for neutron routers."""
 
     def __init__(self, apiresource):
-        apiresource['admin_state'] = \
-            'UP' if apiresource['admin_state_up'] else 'DOWN'
+        _init_apiresource(apiresource)
         super(Router, self).__init__(apiresource)
+
+
+class RouterStaticRoute(NeutronAPIDictWrapper):
+    """Wrapper for neutron routes extra route."""
+
+    def __init__(self, route):
+        super(RouterStaticRoute, self).__init__(route)
+        # Horizon references id property for table operations
+        self.id = route['nexthop'] + ":" + route['destination']
 
 
 class SecurityGroup(NeutronAPIDictWrapper):
@@ -156,6 +175,7 @@ class SecurityGroup(NeutronAPIDictWrapper):
         return {k: self._apidict[k] for k in self._apidict if k != 'rules'}
 
 
+@six.python_2_unicode_compatible
 class SecurityGroupRule(NeutronAPIDictWrapper):
     # Required attributes:
     #   id, parent_group_id
@@ -196,7 +216,7 @@ class SecurityGroupRule(NeutronAPIDictWrapper):
         rule['group'] = {'name': group} if group else {}
         super(SecurityGroupRule, self).__init__(rule)
 
-    def __unicode__(self):
+    def __str__(self):
         if 'name' in self.group:
             remote = self.group['name']
         elif 'cidr' in self.ip_range:
@@ -388,7 +408,7 @@ class FloatingIpManager(network_base.FloatingIpManager):
         # Get port list to add instance_id to floating IP list
         # instance_id is stored in device_id attribute
         ports = port_list(self.request, **port_search_opts)
-        port_dict = SortedDict([(p['id'], p) for p in ports])
+        port_dict = collections.OrderedDict([(p['id'], p) for p in ports])
         for fip in fips:
             self._set_instance_info(fip, port_dict.get(fip['port_id']))
         return [FloatingIp(fip) for fip in fips]
@@ -423,6 +443,11 @@ class FloatingIpManager(network_base.FloatingIpManager):
                                       {'floatingip': update_dict})
 
     def _get_reachable_subnets(self, ports):
+        if not is_enabled_by_config('enable_fip_topology_check', True):
+            # All subnets are reachable from external network
+            return set(
+                p.fixed_ips[0]['subnet_id'] for p in ports if p.fixed_ips
+            )
         # Retrieve subnet list reachable from external network
         ext_net_ids = [ext_net.id for ext_net in self.list_pools()]
         gw_routers = [r.id for r in router_list(self.request)
@@ -443,7 +468,8 @@ class FloatingIpManager(network_base.FloatingIpManager):
         tenant_id = self.request.user.tenant_id
         ports = port_list(self.request, tenant_id=tenant_id)
         servers, has_more = nova.server_list(self.request)
-        server_dict = SortedDict([(s.id, s.name) for s in servers])
+        server_dict = collections.OrderedDict(
+            [(s.id, s.name) for s in servers])
         reachable_subnets = self._get_reachable_subnets(ports)
         if is_service_enabled(self.request,
                               config_name='enable_lb',
@@ -467,6 +493,7 @@ class FloatingIpManager(network_base.FloatingIpManager):
                     continue
                 target = {'name': '%s: %s' % (server_name, ip['ip_address']),
                           'id': '%s_%s' % (port_id, ip['ip_address']),
+                          'port_id': port_id,
                           'instance_id': p.device_id}
                 targets.append(FloatingIpTarget(target))
         return targets
@@ -639,17 +666,17 @@ def network_get(request, network_id, expand_subnet=True, **params):
 
 
 def network_create(request, **kwargs):
-    """Create a subnet on a specified network.
+    """Create a  network object.
 
     :param request: request context
     :param tenant_id: (optional) tenant id of the network created
     :param name: (optional) name of the network created
-    :returns: Subnet object
+    :returns: Network object
     """
     LOG.debug("network_create(): kwargs = %s" % kwargs)
     # In the case network profiles are being used, profile id is needed.
     if 'net_profile_id' in kwargs:
-        kwargs['n1kv:profile_id'] = kwargs.pop('net_profile_id')
+        kwargs['n1kv:profile'] = kwargs.pop('net_profile_id')
     if 'tenant_id' not in kwargs:
         kwargs['tenant_id'] = request.user.project_id
     body = {'network': kwargs}
@@ -721,6 +748,73 @@ def subnet_delete(request, subnet_id):
     neutronclient(request).delete_subnet(subnet_id)
 
 
+def subnetpool_list(request, **params):
+    LOG.debug("subnetpool_list(): params=%s" % (params))
+    subnetpools = \
+        neutronclient(request).list_subnetpools(**params).get('subnetpools')
+    return [SubnetPool(s) for s in subnetpools]
+
+
+def subnetpool_get(request, subnetpool_id, **params):
+    LOG.debug("subnetpool_get(): subnetpoolid=%s, params=%s" %
+              (subnetpool_id, params))
+    subnetpool = \
+        neutronclient(request).show_subnetpool(subnetpool_id,
+                                               **params).get('subnetpool')
+    return SubnetPool(subnetpool)
+
+
+def subnetpool_create(request, name, prefixes, **kwargs):
+    """Create a subnetpool.
+
+    ip_version is auto-detected in back-end.
+
+    Parameters:
+    request           -- Request context
+    name              -- Name for subnetpool
+    prefixes          -- List of prefixes for pool
+
+    Keyword Arguments (optional):
+    min_prefixlen     -- Minimum prefix length for allocations from pool
+    max_prefixlen     -- Maximum prefix length for allocations from pool
+    default_prefixlen -- Default prefix length for allocations from pool
+    default_quota     -- Default quota for allocations from pool
+    shared            -- Subnetpool should be shared (Admin-only)
+    tenant_id         -- Owner of subnetpool
+
+    Returns:
+    SubnetPool object
+    """
+    LOG.debug("subnetpool_create(): name=%s, prefixes=%s, kwargs=%s"
+              % (name, prefixes, kwargs))
+    body = {'subnetpool':
+            {'name': name,
+             'prefixes': prefixes,
+             }
+            }
+    if 'tenant_id' not in kwargs:
+        kwargs['tenant_id'] = request.user.project_id
+    body['subnetpool'].update(kwargs)
+    subnetpool = \
+        neutronclient(request).create_subnetpool(body=body).get('subnetpool')
+    return SubnetPool(subnetpool)
+
+
+def subnetpool_update(request, subnetpool_id, **kwargs):
+    LOG.debug("subnetpool_update(): subnetpoolid=%s, kwargs=%s" %
+              (subnetpool_id, kwargs))
+    body = {'subnetpool': kwargs}
+    subnetpool = \
+        neutronclient(request).update_subnetpool(subnetpool_id,
+                                                 body=body).get('subnetpool')
+    return SubnetPool(subnetpool)
+
+
+def subnetpool_delete(request, subnetpool_id):
+    LOG.debug("subnetpool_delete(): subnetpoolid=%s" % subnetpool_id)
+    return neutronclient(request).delete_subnetpool(subnetpool_id)
+
+
 def port_list(request, **params):
     LOG.debug("port_list(): params=%s" % (params))
     ports = neutronclient(request).list_ports(**params).get('ports')
@@ -753,7 +847,7 @@ def port_create(request, network_id, **kwargs):
     LOG.debug("port_create(): netid=%s, kwargs=%s" % (network_id, kwargs))
     # In the case policy profiles are being used, profile id is needed.
     if 'policy_profile_id' in kwargs:
-        kwargs['n1kv:profile_id'] = kwargs.pop('policy_profile_id')
+        kwargs['n1kv:profile'] = kwargs.pop('policy_profile_id')
     kwargs = unescape_port_kwargs(**kwargs)
     body = {'port': {'network_id': network_id}}
     if 'tenant_id' not in kwargs:
@@ -894,6 +988,39 @@ def router_add_gateway(request, router_id, network_id):
 
 def router_remove_gateway(request, router_id):
     neutronclient(request).remove_gateway_router(router_id)
+
+
+def router_static_route_list(request, router_id=None):
+    router = router_get(request, router_id)
+    try:
+        routes = [RouterStaticRoute(r) for r in router.routes]
+    except AttributeError:
+        LOG.debug("router_static_route_list(): router_id=%s, "
+                  "router=%s", (router_id, router))
+        return []
+    return routes
+
+
+def router_static_route_remove(request, router_id, route_ids):
+    currentroutes = router_static_route_list(request, router_id=router_id)
+    newroutes = []
+    for oldroute in currentroutes:
+        if oldroute.id not in route_ids:
+            newroutes.append({'nexthop': oldroute.nexthop,
+                              'destination': oldroute.destination})
+    body = {'routes': newroutes}
+    new = router_update(request, router_id, **body)
+    return new
+
+
+def router_static_route_add(request, router_id, newroute):
+    body = {}
+    currentroutes = router_static_route_list(request, router_id=router_id)
+    body['routes'] = [newroute] + [{'nexthop': r.nexthop,
+                                    'destination': r.destination}
+                                   for r in currentroutes]
+    new = router_update(request, router_id, **body)
+    return new
 
 
 def tenant_quota_get(request, tenant_id):
@@ -1041,14 +1168,7 @@ def is_extension_supported(request, extension_alias):
 
 
 def is_enabled_by_config(name, default=True):
-    if hasattr(settings, 'OPENSTACK_QUANTUM_NETWORK'):
-        warnings.warn(
-            'OPENSTACK_QUANTUM_NETWORK setting is deprecated and will be '
-            'removed in the near future. '
-            'Please use OPENSTACK_NEUTRON_NETWORK instead.',
-            DeprecationWarning)
-    network_config = (getattr(settings, 'OPENSTACK_NEUTRON_NETWORK', {}) or
-                      getattr(settings, 'OPENSTACK_QUANTUM_NETWORK', {}))
+    network_config = getattr(settings, 'OPENSTACK_NEUTRON_NETWORK', {})
     return network_config.get(name, default)
 
 
@@ -1060,11 +1180,8 @@ def is_service_enabled(request, config_name, ext_name):
 
 @memoized
 def is_quotas_extension_supported(request):
-    if (is_enabled_by_config('enable_quotas', False) and
-            is_extension_supported(request, 'quotas')):
-        return True
-    else:
-        return False
+    return (is_enabled_by_config('enable_quotas', False) and
+            is_extension_supported(request, 'quotas'))
 
 
 # Using this mechanism till a better plugin/sub-plugin detection

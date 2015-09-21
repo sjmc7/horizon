@@ -10,12 +10,12 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+from collections import OrderedDict
 import logging
 import threading
 
 from ceilometerclient import client as ceilometer_client
 from django.conf import settings
-from django.utils import datastructures
 from django.utils.translation import ugettext_lazy as _
 
 from horizon import exceptions
@@ -289,10 +289,10 @@ def resource_list(request, query=None, ceilometer_usage_object=None):
     return [Resource(r, ceilometer_usage_object) for r in resources]
 
 
-def sample_list(request, meter_name, query=None):
+def sample_list(request, meter_name, query=None, limit=None):
     """List the samples for this meters."""
     samples = ceilometerclient(request).samples.list(meter_name=meter_name,
-                                                     q=query)
+                                                     q=query, limit=limit)
     return [Sample(s) for s in samples]
 
 
@@ -925,7 +925,7 @@ class Meters(object):
         # below, I need to define it as a static here. I will be joining this
         # to info that I am able to obtain from Ceilometer meters, hopefully
         # some day it will be supported all.
-        meters_info = datastructures.SortedDict([
+        meters_info = OrderedDict([
             ("instance", {
                 'label': '',
                 'description': _("Existence of instance"),
@@ -1061,7 +1061,7 @@ class Meters(object):
         # below, I need to define it as a static here. I will be joining this
         # to info that I am able to obtain from Ceilometer meters, hopefully
         # some day it will be supported all.
-        return datastructures.SortedDict([
+        return OrderedDict([
             ('network', {
                 'label': '',
                 'description': _("Existence of network"),
@@ -1134,7 +1134,7 @@ class Meters(object):
         # below, I need to define it as a static here. I will be joining this
         # to info that I am able to obtain from Ceilometer meters, hopefully
         # some day it will be supported all.
-        return datastructures.SortedDict([
+        return OrderedDict([
             ('image', {
                 'label': '',
                 'description': _("Image existence check"),
@@ -1175,7 +1175,7 @@ class Meters(object):
         # below, I need to define it as a static here. I will be joining this
         # to info that I am able to obtain from Ceilometer meters, hopefully
         # some day it will be supported all.
-        return datastructures.SortedDict([
+        return OrderedDict([
             ('volume', {
                 'label': '',
                 'description': _("Existence of volume"),
@@ -1196,7 +1196,7 @@ class Meters(object):
         # below, I need to define it as a static here. I will be joining this
         # to info that I am able to obtain from Ceilometer meters, hopefully
         # some day it will be supported all.
-        return datastructures.SortedDict([
+        return OrderedDict([
             ('storage.objects', {
                 'label': '',
                 'description': _("Number of objects"),
@@ -1233,7 +1233,7 @@ class Meters(object):
         # below, I need to define it as a static here. I will be joining this
         # to info that I am able to obtain from Ceilometer meters, hopefully
         # some day it will be supported all.
-        return datastructures.SortedDict([
+        return OrderedDict([
             ('energy', {
                 'label': '',
                 'description': _("Amount of energy"),
@@ -1254,7 +1254,7 @@ class Meters(object):
         # below, I need to define it as a static here. I will be joining this
         # to info that I am able to obtain from Ceilometer meters, hopefully
         # some day it will be supported all.
-        return datastructures.SortedDict([
+        return OrderedDict([
             ('hardware.ipmi.node.power', {
                 'label': '',
                 'description': _("System Current Power"),
@@ -1275,9 +1275,9 @@ class Meters(object):
                 'label': '',
                 'description': _("Sensor Voltage Reading"),
             }),
-            ('hardware.ipmi.node.inlet_temperature', {
+            ('hardware.ipmi.node.temperature', {
                 'label': '',
-                'description': _("System Inlet Temperature Reading"),
+                'description': _("System Temperature Reading"),
             }),
             ('hardware.ipmi.node.outlet_temperature', {
                 'label': '',

@@ -23,6 +23,18 @@ from openstack_dashboard.test import helpers as test
 
 class KeystoneRestTestCase(test.TestCase):
     #
+    # Version
+    #
+    @mock.patch.object(keystone.api, 'keystone')
+    def test_version_get(self, kc):
+        request = self.mock_rest_request()
+        kc.get_version.return_value = '2.0'
+        response = keystone.Version().get(request)
+        self.assertStatusCode(response, 200)
+        self.assertEqual(response.content, '{"version": "2.0"}')
+        kc.get_version.assert_called_once_with()
+
+    #
     # Users
     #
     @mock.patch.object(keystone.api, 'keystone')
@@ -42,7 +54,6 @@ class KeystoneRestTestCase(test.TestCase):
         self.assertStatusCode(response, 200)
         self.assertEqual(response.content, '{"name": "Ni!"}')
         kc.user_get.assert_called_once_with(request, 'current_id')
-        kc.user_get.assert_not_called()
 
     @mock.patch.object(keystone.api, 'keystone')
     def test_user_get_list(self, kc):
@@ -125,7 +136,7 @@ class KeystoneRestTestCase(test.TestCase):
         )
 
     @mock.patch.object(keystone.api, 'keystone')
-    def _test_user_create(self, supplied_body, expected_call, kc):
+    def _test_user_create(self, supplied_body, add_user_call, kc):
         request = self.mock_rest_request(body=supplied_body)
         kc.get_default_domain.return_value = mock.Mock(**{'id': 'the_domain'})
         kc.user_create.return_value.id = 'user123'
@@ -140,7 +151,7 @@ class KeystoneRestTestCase(test.TestCase):
                          '/api/keystone/users/user123')
         self.assertEqual(response.content, '{"id": "user123", '
                          '"name": "bob"}')
-        kc.user_create.assert_called_once_with(request, **expected_call)
+        kc.user_create.assert_called_once_with(request, **add_user_call)
 
     @mock.patch.object(keystone.api, 'keystone')
     def test_user_delete_many(self, kc):
@@ -151,7 +162,7 @@ class KeystoneRestTestCase(test.TestCase):
         response = keystone.Users().delete(request)
         self.assertStatusCode(response, 204)
         self.assertEqual(response.content, '')
-        kc.user_delete.assert_has_mock.calls([
+        kc.user_delete.assert_has_calls([
             mock.call(request, 'id1'),
             mock.call(request, 'id2'),
             mock.call(request, 'id3'),
@@ -312,7 +323,7 @@ class KeystoneRestTestCase(test.TestCase):
         response = keystone.Roles().delete(request)
         self.assertStatusCode(response, 204)
         self.assertEqual(response.content, '')
-        kc.role_delete.assert_has_mock.calls([
+        kc.role_delete.assert_has_calls([
             mock.call(request, 'id1'),
             mock.call(request, 'id2'),
             mock.call(request, 'id3'),
@@ -418,7 +429,7 @@ class KeystoneRestTestCase(test.TestCase):
         response = keystone.Domains().delete(request)
         self.assertStatusCode(response, 204)
         self.assertEqual(response.content, '')
-        kc.domain_delete.assert_has_mock.calls([
+        kc.domain_delete.assert_has_calls([
             mock.call(request, 'id1'),
             mock.call(request, 'id2'),
             mock.call(request, 'id3'),
@@ -456,9 +467,54 @@ class KeystoneRestTestCase(test.TestCase):
         self.assertEqual(response.content, '{"name": "Ni!"}')
         kc.tenant_get.assert_called_once_with(request, 'the_id')
 
+    def test_project_get_list(self):
+        self._test_project_get_list(
+            {},
+            {
+                'paginate': False,
+                'marker': None,
+                'domain': None,
+                'user': None,
+                'admin': True,
+                'filters': None
+            }
+        )
+
+    def test_project_get_list_with_params_true(self):
+        self._test_project_get_list(
+            {
+                'paginate': 'true',
+                'admin': 'true'
+            },
+            {
+                'paginate': True,
+                'marker': None,
+                'domain': None,
+                'user': None,
+                'admin': True,
+                'filters': None
+            }
+        )
+
+    def test_project_get_list_with_params_false(self):
+        self._test_project_get_list(
+            {
+                'paginate': 'false',
+                'admin': 'false'
+            },
+            {
+                'paginate': False,
+                'marker': None,
+                'domain': None,
+                'user': None,
+                'admin': False,
+                'filters': None
+            }
+        )
+
     @mock.patch.object(keystone.api, 'keystone')
-    def test_project_get_list(self, kc):
-        request = self.mock_rest_request(**{'GET': {}})
+    def _test_project_get_list(self, params, expected_call, kc):
+        request = self.mock_rest_request(**{'GET': dict(**params)})
         kc.tenant_list.return_value = ([
             mock.Mock(**{'to_dict.return_value': {'name': 'Ni!'}}),
             mock.Mock(**{'to_dict.return_value': {'name': 'Ptang!'}})
@@ -468,10 +524,7 @@ class KeystoneRestTestCase(test.TestCase):
         self.assertStatusCode(response, 200)
         self.assertEqual(response.content, '{"has_more": false, '
                          '"items": [{"name": "Ni!"}, {"name": "Ptang!"}]}')
-        kc.tenant_list.assert_called_once_with(request, paginate=False,
-                                               marker=None, domain=None,
-                                               user=None, admin=True,
-                                               filters=None)
+        kc.tenant_list.assert_called_once_with(request, **expected_call)
 
     @mock.patch.object(keystone.api, 'keystone')
     def test_project_get_list_with_filters(self, kc):
@@ -539,7 +592,7 @@ class KeystoneRestTestCase(test.TestCase):
         response = keystone.Projects().delete(request)
         self.assertStatusCode(response, 204)
         self.assertEqual(response.content, '')
-        kc.tenant_delete.assert_has_mock.calls([
+        kc.tenant_delete.assert_has_calls([
             mock.call(request, 'id1'),
             mock.call(request, 'id2'),
             mock.call(request, 'id3'),

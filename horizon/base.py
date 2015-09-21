@@ -32,11 +32,12 @@ from django.conf.urls import patterns
 from django.conf.urls import url
 from django.core.exceptions import ImproperlyConfigured  # noqa
 from django.core.urlresolvers import reverse
-from django.utils.datastructures import SortedDict
+from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import SimpleLazyObject  # noqa
 from django.utils.importlib import import_module  # noqa
 from django.utils.module_loading import module_has_submodule  # noqa
 from django.utils.translation import ugettext_lazy as _
+import six
 
 from horizon import conf
 from horizon.decorators import _current_component  # noqa
@@ -56,6 +57,10 @@ def _decorate_urlconf(urlpatterns, decorator, *args, **kwargs):
             _decorate_urlconf(pattern.url_patterns, decorator, *args, **kwargs)
 
 
+# FIXME(lhcheng): We need to find a better way to cache the result.
+# Rather than storing it in the session, we could leverage the Django
+# session. Currently, this has been causing issue with cookie backend,
+# adding 1600+ in the cookie size.
 def access_cached(func):
     def inner(self, context):
         session = context['request'].session
@@ -77,6 +82,7 @@ class NotRegistered(Exception):
     pass
 
 
+@python_2_unicode_compatible
 class HorizonComponent(object):
     policy_rules = None
 
@@ -86,9 +92,9 @@ class HorizonComponent(object):
             raise ImproperlyConfigured('Every %s must have a slug.'
                                        % self.__class__)
 
-    def __unicode__(self):
+    def __str__(self):
         name = getattr(self, 'name', u"Unnamed %s" % self.__class__.__name__)
-        return unicode(name)
+        return name
 
     def _get_default_urlpatterns(self):
         package_string = '.'.join(self.__module__.split('.')[:-1])
@@ -107,7 +113,10 @@ class HorizonComponent(object):
                 urlpatterns = patterns('')
         return urlpatterns
 
-    @access_cached
+    # FIXME(lhcheng): Removed the access_cached decorator for now until
+    # a better implementation has been figured out. This has been causing
+    # issue with cookie backend, adding 1600+ in the cookie size.
+    # @access_cached
     def can_access(self, context):
         """Return whether the user has role based access to this component.
 
@@ -252,6 +261,18 @@ class Panel(HorizonComponent):
         The ``name`` argument for the URL pattern which corresponds to
         the index view for this ``Panel``. This is the view that
         :meth:`.Panel.get_absolute_url` will attempt to reverse.
+
+    .. staticmethod:: can_register
+
+        This optional static method can be used to specify conditions that
+        need to be satisfied to load this panel. Unlike ``permissions`` and
+        ``allowed`` this method is intended to handle settings based
+        conditions rather than user based permission and policy checks.
+        The return value is boolean. If the method returns ``True``, then the
+        panel will be registered and available to user (if ``permissions`` and
+        ``allowed`` runtime checks are also satisfied). If the method returns
+        ``False``, then the panel will not be registered and will not be
+        available via normal navigation or direct URL access.
     """
     name = ''
     slug = ''
@@ -291,6 +312,7 @@ class Panel(HorizonComponent):
         return urlpatterns, self.slug, self.slug
 
 
+@six.python_2_unicode_compatible
 class PanelGroup(object):
     """A container for a set of :class:`~horizon.Panel` classes.
 
@@ -321,7 +343,7 @@ class PanelGroup(object):
     def __repr__(self):
         return "<%s: %s>" % (self.__class__.__name__, self.slug)
 
-    def __unicode__(self):
+    def __str__(self):
         return self.name
 
     def __iter__(self):
@@ -475,7 +497,7 @@ class Dashboard(Registry, HorizonComponent):
                                    name=_("Other"),
                                    panels=slugs)
             panel_groups.append((new_group.slug, new_group))
-        return SortedDict(panel_groups)
+        return collections.OrderedDict(panel_groups)
 
     def get_absolute_url(self):
         """Returns the default URL for this dashboard.
@@ -535,7 +557,7 @@ class Dashboard(Registry, HorizonComponent):
         panel_groups = []
         # If we have a flat iterable of panel names, wrap it again so
         # we have a consistent structure for the next step.
-        if all([isinstance(i, basestring) for i in self.panels]):
+        if all([isinstance(i, six.string_types) for i in self.panels]):
             self.panels = [self.panels]
 
         # Now iterate our panel sets.
@@ -552,7 +574,7 @@ class Dashboard(Registry, HorizonComponent):
             panels_to_discover.extend(panel_group.panels)
             panel_groups.append((panel_group.slug, panel_group))
 
-        self._panel_groups = SortedDict(panel_groups)
+        self._panel_groups = collections.OrderedDict(panel_groups)
 
         # Do the actual discovery
         package = '.'.join(self.__module__.split('.')[:-1])
@@ -719,14 +741,11 @@ class Site(Registry, HorizonComponent):
                 dashboards.append(dashboard)
                 registered.pop(dashboard.__class__)
             if len(registered):
-                extra = registered.values()
-                extra.sort()
+                extra = sorted(registered.values())
                 dashboards.extend(extra)
             return dashboards
         else:
-            dashboards = self._registry.values()
-            dashboards.sort()
-            return dashboards
+            return sorted(self._registry.values())
 
     def get_default_dashboard(self):
         """Returns the default :class:`~horizon.Dashboard` instance.
@@ -767,7 +786,7 @@ class Site(Registry, HorizonComponent):
         if user_home:
             if callable(user_home):
                 return user_home(user)
-            elif isinstance(user_home, basestring):
+            elif isinstance(user_home, six.string_types):
                 # Assume we've got a URL if there's a slash in it
                 if '/' in user_home:
                     return user_home
@@ -871,14 +890,21 @@ class Site(Registry, HorizonComponent):
         """
         panel_customization = self._conf.get("panel_customization", [])
 
+        # Process all the panel groups first so that they exist before panels
+        # are added to them and Dashboard._autodiscover() doesn't wipe out any
+        # panels previously added when its panel groups are instantiated.
+        panel_configs = []
         for config in panel_customization:
             if config.get('PANEL'):
-                self._process_panel_configuration(config)
+                panel_configs.append(config)
             elif config.get('PANEL_GROUP'):
                 self._process_panel_group_configuration(config)
             else:
                 LOG.warning("Skipping %s because it doesn't have PANEL or "
                             "PANEL_GROUP defined.", config.__name__)
+        # Now process the panels.
+        for config in panel_configs:
+            self._process_panel_configuration(config)
 
     def _process_panel_configuration(self, config):
         """Add, remove and set default panels on the dashboard."""
@@ -912,10 +938,16 @@ class Site(Registry, HorizonComponent):
                     LOG.warning("Could not load panel: %s", mod_path)
                     return
                 panel = getattr(mod, panel_cls)
+                # test is can_register method is present and call method if
+                # it is to determine if the panel should be loaded
+                if hasattr(panel, 'can_register') and \
+                   callable(getattr(panel, 'can_register')):
+                    if not panel.can_register():
+                        LOG.debug("Load condition failed for panel: %(panel)s",
+                                  {'panel': panel_slug})
+                        return
                 dashboard_cls.register(panel)
                 if panel_group:
-                    dashboard_cls.get_panel_group(panel_group).__class__.\
-                        panels.append(panel.slug)
                     dashboard_cls.get_panel_group(panel_group).\
                         panels.append(panel.slug)
                 else:

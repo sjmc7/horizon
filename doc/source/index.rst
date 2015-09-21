@@ -63,6 +63,7 @@ Brief guides to areas of interest and importance when developing Horizon.
    topics/tutorial
    contributing
    testing
+   plugins
 
 Topic Guides
 ------------
@@ -78,6 +79,8 @@ the following topic guides.
    topics/policy
    topics/testing
    topics/table_actions
+   topics/angularjs
+   topics/javascript_testing
 
 API Reference
 -------------

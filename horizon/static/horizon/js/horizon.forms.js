@@ -1,7 +1,7 @@
 /* Namespace for core functionality related to Forms. */
 horizon.forms = {
   handle_snapshot_source: function() {
-    $("div.table_wrapper, #modal_wrapper").on("change", "select#id_snapshot_source", function(evt) {
+    $("div.table_wrapper, #modal_wrapper").on("change", "select#id_snapshot_source", function() {
       var $option = $(this).find("option:selected");
       var $form = $(this).closest('form');
       var $volName = $form.find('input#id_name');
@@ -18,7 +18,7 @@ horizon.forms = {
   },
 
   handle_volume_source: function() {
-    $("div.table_wrapper, #modal_wrapper").on("change", "select#id_volume_source", function(evt) {
+    $("div.table_wrapper, #modal_wrapper").on("change", "select#id_volume_source", function() {
       var $option = $(this).find("option:selected");
       var $form = $(this).closest('form');
       var $volName = $form.find('input#id_name');
@@ -35,7 +35,7 @@ horizon.forms = {
   },
 
   handle_image_source: function() {
-    $("div.table_wrapper, #modal_wrapper").on("change", "select#id_image_source", function(evt) {
+    $("div.table_wrapper, #modal_wrapper").on("change", "select#id_image_source", function() {
       var $option = $(this).find("option:selected");
       var $form = $(this).closest('form');
       var $volName = $form.find('input#id_name');
@@ -56,6 +56,68 @@ horizon.forms = {
     });
   },
 
+  handle_subnet_address_source: function() {
+    $("div.table_wrapper, #modal_wrapper").on("change", "select#id_address_source", function(evt) {
+      var $option = $(this).find("option:selected");
+      var $form = $(this).closest("form");
+      var $ipVersion = $form.find("select#id_ip_version");
+      if ($option.val() == "subnetpool") {
+        $ipVersion.attr("disabled", "disabled");
+        // disabled fields do not post, store the value in a hidden input
+        var el = document.createElement("input");
+        el.type='hidden';
+        el.id = "id_hidden_ip_version";
+        el.name = $ipVersion.attr('name');
+        el.value = $ipVersion.attr('value');
+        $form.append(el);
+      } else {
+        var $hiddenIpVersion = $form.find("hidden#id_hidden_ip_version");
+        $hiddenIpVersion.remove();
+        $ipVersion.removeAttr("disabled");
+      }
+    });
+  },
+
+  handle_subnet_subnetpool: function() {
+    $("div.table_wrapper, #modal_wrapper").on("change", "select#id_subnetpool", function(evt) {
+      var $option = $(this).find("option:selected");
+      var $form = $(this).closest("form");
+      var $ipVersion = $form.find("select#id_ip_version");
+      var $prefixLength = $form.find("select#id_prefixlen");
+      var $ipv6Modes = $form.find("select#id_ipv6_modes");
+      var subnetpoolIpVersion = parseInt($option.data("ip_version"), 10) || 4;
+      var minPrefixLen = parseInt($option.data("min_prefixlen"), 10) || 1;
+      var maxPrefixLen = parseInt($option.data("max_prefixlen"), 10);
+      var defaultPrefixLen = parseInt($option.data("default_prefixlen"), 10) ||
+                             -1;
+      var optionsAsString = "";
+
+      $ipVersion.val(subnetpoolIpVersion);
+
+      if (!maxPrefixLen) {
+        if (subnetpoolIpVersion == 4) {
+          maxPrefixLen = 32;
+        } else {
+          maxPrefixLen = 128;
+        }
+      }
+
+      for (i = minPrefixLen; i <= maxPrefixLen; i++) {
+        optionsAsString += "<option value='" + i + "'>" + i;
+        if (i == defaultPrefixLen) {
+          optionsAsString += " (" + gettext("pool default") + ")";
+        }
+        optionsAsString += "</option>";
+      }
+      $prefixLength.empty().append(optionsAsString);
+      if (defaultPrefixLen >= 0) {
+        $prefixLength.val(defaultPrefixLen);
+      } else {
+        $prefixLength.val("");
+      }
+    });
+  },
+
   /**
    * In the container's upload object form, copy the selected file name in the
    * object name field if the field is empty. The filename string is stored in
@@ -63,7 +125,7 @@ horizon.forms = {
    * compare with the value of the new filename string.
    */
   handle_object_upload_source: function() {
-    $("div.table_wrapper, #modal_wrapper").on("change", "input#id_object_file", function(evt) {
+    $("div.table_wrapper, #modal_wrapper").on("change", "input#id_object_file", function() {
       if (typeof($(this).attr("filename")) === 'undefined') {
         $(this).attr("filename", "");
       }
@@ -102,7 +164,7 @@ horizon.forms = {
     var endDate = $('input#id_end').datepicker({
       language: horizon.datepickerLocale,
       startDate: startDate ? startDate.dates[0] : null
-    }).on('changeDate', function(ev) {
+    }).on('changeDate', function() {
         endDate.hide();
       }).data('datepicker');
 
@@ -196,6 +258,8 @@ horizon.addInitFunction(horizon.forms.init = function () {
   horizon.forms.handle_image_source();
   horizon.forms.handle_object_upload_source();
   horizon.forms.datepicker();
+  horizon.forms.handle_subnet_address_source();
+  horizon.forms.handle_subnet_subnetpool();
 
   if (!horizon.conf.disable_password_reveal) {
     horizon.forms.add_password_fields_reveal_buttons($("body"));
@@ -260,24 +324,25 @@ horizon.addInitFunction(horizon.forms.init = function () {
         visible = $switchable.is(':visible'),
         slug = $switchable.data('slug'),
         checked = $switchable.prop('checked'),
-        hide_tab = $switchable.data('hide-tab'),
+        hide_tab = String($switchable.data('hide-tab')).split(','),
         hide_on = $switchable.data('hideOnChecked');
 
       // If checkbox is hidden then do not apply any further logic
       if (!visible) return;
 
       // If the checkbox has hide-tab attribute then hide/show the tab
-      if (hide_tab) {
+      var i, len;
+      for (i = 0, len = hide_tab.length; i < len; i++) {
         var $btnfinal = $('.button-final');
         if(checked == hide_on) {
           // If the checkbox is not checked then hide the tab
-          $('*[data-target="#'+ hide_tab +'"]').parent().hide();
+          $('*[data-target="#'+ hide_tab[i] +'"]').parent().hide();
           $('.button-next').hide();
           $btnfinal.show();
           $btnfinal.data('show-on-tab', $fieldset.prop('id'));
-        } else if (!$('*[data-target="#'+ hide_tab +'"]').parent().is(':visible')) {
+        } else if (!$('*[data-target="#'+ hide_tab[i] +'"]').parent().is(':visible')) {
           // If the checkbox is checked and the tab is currently hidden then show the tab again
-          $('*[data-target="#'+ hide_tab +'"]').parent().show();
+          $('*[data-target="#'+ hide_tab[i] +'"]').parent().show();
           $btnfinal.hide();
           $('.button-next').show();
           $btnfinal.removeData('show-on-tab');
@@ -313,7 +378,7 @@ horizon.addInitFunction(horizon.forms.init = function () {
     $(modal).find('input.switchable').trigger('change');
   });
 
-  $document.on('shown.bs.tab', function(evt) {
+  $document.on('shown.bs.tab', function() {
     var $fieldset = $('fieldset.active');
     var $btnfinal = $('.button-final');
     if ($btnfinal.data('show-on-tab')) {
@@ -341,7 +406,7 @@ horizon.addInitFunction(horizon.forms.init = function () {
     });
   }
 
-  $document.on('change', '#id_volume_source_type', function (evt) {
+  $document.on('change', '#id_volume_source_type', function () {
     update_volume_source_displayed_fields(this);
   });
 
@@ -366,7 +431,7 @@ horizon.addInitFunction(horizon.forms.init = function () {
   });
   // Hide the tooltip upon interaction with the field for select boxes.
   // We use mousedown and keydown since those "open" the select dropdown.
-  $document.on('mousedown keydown', '.form-group select', function (evt) {
+  $document.on('mousedown keydown', '.form-group select', function () {
     $(this).tooltip('hide');
   });
   // Hide the tooltip after escape button pressed

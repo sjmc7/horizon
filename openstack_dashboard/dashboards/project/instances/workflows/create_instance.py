@@ -435,7 +435,7 @@ class SetInstanceDetailsAction(workflows.Action):
                                                   context.get('project_id'),
                                                   self._images_cache)
         for image in images:
-            image.bytes = image.virtual_size or image.size
+            image.bytes = getattr(image, 'virtual_size', None) or image.size
             image.volume_size = max(
                 image.min_disk, functions.bytes_to_gigabytes(image.bytes))
             choices.append((image.id, image))
@@ -466,7 +466,8 @@ class SetInstanceDetailsAction(workflows.Action):
     def populate_volume_id_choices(self, request, context):
         volumes = []
         try:
-            if base.is_service_enabled(request, 'volume'):
+            if (base.is_service_enabled(request, 'volume')
+                    or base.is_service_enabled(request, 'volumev2')):
                 available = api.cinder.VOLUME_STATE_AVAILABLE
                 volumes = [self._get_volume_display_name(v)
                            for v in cinder.volume_list(self.request,
@@ -483,7 +484,8 @@ class SetInstanceDetailsAction(workflows.Action):
     def populate_volume_snapshot_id_choices(self, request, context):
         snapshots = []
         try:
-            if base.is_service_enabled(request, 'volume'):
+            if (base.is_service_enabled(request, 'volume')
+                    or base.is_service_enabled(request, 'volumev2')):
                 available = api.cinder.VOLUME_STATE_AVAILABLE
                 snapshots = [self._get_volume_display_name(s)
                              for s in cinder.volume_snapshot_list(
@@ -537,7 +539,6 @@ KEYPAIR_IMPORT_URL = "horizon:project:access_and_security:keypairs:import"
 
 class SetAccessControlsAction(workflows.Action):
     keypair = forms.DynamicChoiceField(label=_("Key Pair"),
-                                       required=False,
                                        help_text=_("Key pair to use for "
                                                    "authentication."),
                                        add_item_link=KEYPAIR_IMPORT_URL)
@@ -568,6 +569,7 @@ class SetAccessControlsAction(workflows.Action):
         if not api.nova.can_set_server_password():
             del self.fields['admin_pass']
             del self.fields['confirm_admin_pass']
+        self.fields['keypair'].required = api.nova.requires_keypair()
 
     def populate_keypair_choices(self, request, context):
         keypairs = instance_utils.keypair_field_data(request, True)
@@ -578,7 +580,11 @@ class SetAccessControlsAction(workflows.Action):
     def populate_groups_choices(self, request, context):
         try:
             groups = api.network.security_group_list(request)
-            security_group_list = [(sg.name, sg.name) for sg in groups]
+            if base.is_service_enabled(request, 'network'):
+                security_group_list = [(sg.id, sg.name) for sg in groups]
+            else:
+                # Nova-Network requires the groups to be listed by name
+                security_group_list = [(sg.name, sg.name) for sg in groups]
         except Exception:
             exceptions.handle(request,
                               _('Unable to retrieve list of security groups'))
@@ -862,10 +868,37 @@ class LaunchInstance(workflows.Workflow):
         if source_type in ['image_id', 'instance_snapshot_id']:
             image_id = context['source_id']
         elif source_type in ['volume_id', 'volume_snapshot_id']:
-            dev_mapping_1 = {context['device_name']:
-                             '%s::%s' %
-                             (context['source_id'],
-                              int(bool(context['delete_on_terminate'])))}
+            try:
+                if api.nova.extension_supported("BlockDeviceMappingV2Boot",
+                                                request):
+                    # Volume source id is extracted from the source
+                    volume_source_id = context['source_id'].split(':')[0]
+                    device_name = context.get('device_name', '') \
+                        .strip() or None
+                    dev_source_type_mapping = {
+                        'volume_id': 'volume',
+                        'volume_snapshot_id': 'snapshot'
+                    }
+                    dev_mapping_2 = [
+                        {'device_name': device_name,
+                         'source_type': dev_source_type_mapping[source_type],
+                         'destination_type': 'volume',
+                         'delete_on_termination':
+                             bool(context['delete_on_terminate']),
+                         'uuid': volume_source_id,
+                         'boot_index': '0',
+                         'volume_size': context['volume_size']
+                         }
+                    ]
+                else:
+                    dev_mapping_1 = {context['device_name']: '%s::%s' %
+                                     (context['source_id'],
+                                     bool(context['delete_on_terminate']))
+                                     }
+            except Exception:
+                msg = _('Unable to retrieve extensions information')
+                exceptions.handle(request, msg)
+
         elif source_type == 'volume_image_id':
             device_name = context.get('device_name', '').strip() or None
             dev_mapping_2 = [
@@ -873,7 +906,7 @@ class LaunchInstance(workflows.Workflow):
                  'source_type': 'image',
                  'destination_type': 'volume',
                  'delete_on_termination':
-                     int(bool(context['delete_on_terminate'])),
+                     bool(context['delete_on_terminate']),
                  'uuid': context['source_id'],
                  'boot_index': '0',
                  'volume_size': context['volume_size']
@@ -889,7 +922,9 @@ class LaunchInstance(workflows.Workflow):
 
         avail_zone = context.get('availability_zone', None)
 
-        if api.neutron.is_port_profiles_supported():
+        port_profiles_supported = api.neutron.is_port_profiles_supported()
+
+        if port_profiles_supported:
             nics = self.set_network_port_profiles(request,
                                                   context['network_id'],
                                                   context['profile_id'])
@@ -912,8 +947,16 @@ class LaunchInstance(workflows.Workflow):
                                    config_drive=context.get('config_drive'))
             return True
         except Exception:
+            if port_profiles_supported:
+                ports_failing_deletes = _cleanup_ports_on_failed_vm_launch(
+                    request, nics)
+                if ports_failing_deletes:
+                    ports_str = ', '.join(ports_failing_deletes)
+                    msg = (_('Port cleanup failed for these port-ids (%s).')
+                           % ports_str)
+                    exceptions.handle(request, msg)
             exceptions.handle(request)
-            return False
+        return False
 
     def set_network_port_profiles(self, request, net_ids, profile_id):
         # Create port with Network ID and Port Profile
@@ -951,3 +994,15 @@ class LaunchInstance(workflows.Workflow):
                            'profile_id': profile_id})
 
         return nics
+
+
+def _cleanup_ports_on_failed_vm_launch(request, nics):
+    ports_failing_deletes = []
+    LOG.debug('Cleaning up stale VM ports.')
+    for nic in nics:
+        try:
+            LOG.debug('Deleting port with id: %s' % nic['port-id'])
+            api.neutron.port_delete(request, nic['port-id'])
+        except Exception:
+            ports_failing_deletes.append(nic['port-id'])
+    return ports_failing_deletes

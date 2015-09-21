@@ -27,6 +27,7 @@ from django.utils.translation import pgettext_lazy
 from django.utils.translation import string_concat  # noqa
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext_lazy
+import six
 
 from horizon import conf
 from horizon import exceptions
@@ -69,6 +70,8 @@ PAUSE = 0
 UNPAUSE = 1
 SUSPEND = 0
 RESUME = 1
+SHELVE = 0
+UNSHELVE = 1
 
 
 def is_deleting(instance):
@@ -303,6 +306,73 @@ class ToggleSuspend(tables.BatchAction):
             self.current_past_action = SUSPEND
 
 
+class ToggleShelve(tables.BatchAction):
+    name = "shelve"
+    icon = "shelve"
+
+    @staticmethod
+    def action_present(count):
+        return (
+            ungettext_lazy(
+                u"Shelve Instance",
+                u"Shelve Instances",
+                count
+            ),
+            ungettext_lazy(
+                u"Unshelve Instance",
+                u"Unshelve Instances",
+                count
+            ),
+        )
+
+    @staticmethod
+    def action_past(count):
+        return (
+            ungettext_lazy(
+                u"Shelved Instance",
+                u"Shelved Instances",
+                count
+            ),
+            ungettext_lazy(
+                u"Unshelved Instance",
+                u"Unshelved Instances",
+                count
+            ),
+        )
+
+    def allowed(self, request, instance=None):
+        if not api.nova.extension_supported('Shelve', request):
+            return False
+        if not instance:
+            return False
+        self.shelved = instance.status == "SHELVED_OFFLOADED"
+        if self.shelved:
+            self.current_present_action = UNSHELVE
+            policy = (("compute", "compute_extension:unshelve"),)
+        else:
+            self.current_present_action = SHELVE
+            policy = (("compute", "compute_extension:shelve"),)
+
+        has_permission = True
+        policy_check = getattr(settings, "POLICY_CHECK_FUNCTION", None)
+        if policy_check:
+            has_permission = policy_check(
+                policy, request,
+                target={'project_id': getattr(instance, 'tenant_id', None)})
+
+        return (has_permission
+                and (instance.status in ACTIVE_STATES or self.shelved)
+                and not is_deleting(instance))
+
+    def action(self, request, obj_id):
+        if self.shelved:
+            api.nova.server_unshelve(request, obj_id)
+            self.current_past_action = UNSHELVE
+        else:
+            api.nova.server_shelve(request, obj_id)
+            self.current_past_action = SHELVE
+
+
 class LaunchLink(tables.LinkAction):
     name = "launch"
     verbose_name = _("Launch Instance")
@@ -349,19 +419,19 @@ class LaunchLink(tables.LinkAction):
 
 class LaunchLinkNG(LaunchLink):
     name = "launch-ng"
-    verbose_name = _("Launch Instance NG")
+    url = "horizon:project:instances:index"
     ajax = False
-    classes = ("btn-launch")
+    classes = ("btn-launch", )
 
-    def __init__(self,
-                 attrs={
-                     "ng-controller": "LaunchInstanceModalCtrl",
-                     "ng-click": "openLaunchInstanceWizard(" +
-                                 "{successUrl: '/project/instances/'})"
-                 },
-                 **kwargs):
-        kwargs['preempt'] = True
-        super(LaunchLink, self).__init__(attrs, **kwargs)
+    def get_default_attrs(self):
+        url = urlresolvers.reverse(self.url)
+        ngclick = "modal.openLaunchInstanceWizard(" \
+            "{ successUrl: '%s' })" % url
+        self.attrs.update({
+            'ng-controller': 'LaunchInstanceModalController as modal',
+            'ng-click': ngclick
+        })
+        return super(LaunchLinkNG, self).get_default_attrs()
 
     def get_link_url(self, datum=None):
         return "javascript:void(0);"
@@ -558,6 +628,10 @@ class AssociateIP(policy.PolicyTargetMixin, tables.LinkAction):
             return False
         if instance.status == "ERROR":
             return False
+        for addresses in instance.addresses.values():
+            for address in addresses:
+                if address.get('OS-EXT-IPS:type') == "floating":
+                    return False
         return not is_deleting(instance)
 
     def get_link_url(self, datum):
@@ -612,7 +686,11 @@ class SimpleDisassociateIP(policy.PolicyTargetMixin, tables.Action):
             return False
         if not conf.HORIZON_CONFIG["simple_ip_management"]:
             return False
-        return not is_deleting(instance)
+        for addresses in instance.addresses.values():
+            for address in addresses:
+                if address.get('OS-EXT-IPS:type') == "floating":
+                    return not is_deleting(instance)
+        return False
 
     def single(self, table, request, instance_id):
         try:
@@ -716,7 +794,7 @@ class StopInstance(policy.PolicyTargetMixin, tables.BatchAction):
     name = "stop"
     classes = ('btn-danger',)
     policy_rules = (("compute", "compute:stop"),)
-    help_text = _("To power off a specific instance.")
+    help_text = _("The instance(s) will be shut off.")
 
     @staticmethod
     def action_present(count):
@@ -807,11 +885,48 @@ class UnlockInstance(policy.PolicyTargetMixin, tables.BatchAction):
         api.nova.server_unlock(request, obj_id)
 
 
+class AttachInterface(policy.PolicyTargetMixin, tables.LinkAction):
+    name = "attach_interface"
+    verbose_name = _("Attach Interface")
+    classes = ("btn-confirm", "ajax-modal")
+    url = "horizon:project:instances:attach_interface"
+    policy_rules = (("compute", "compute_extension:attach_interfaces"),)
+
+    def allowed(self, request, instance):
+        return ((instance.status in ACTIVE_STATES
+                 or instance.status == 'SHUTOFF')
+                and not is_deleting(instance)
+                and api.base.is_service_enabled(request, 'network'))
+
+    def get_link_url(self, datum):
+        instance_id = self.table.get_object_id(datum)
+        return urlresolvers.reverse(self.url, args=[instance_id])
+
+
+# TODO(lyj): the policy for detach interface not exists in nova.json,
+#            once it's added, it should be added here.
+class DetachInterface(policy.PolicyTargetMixin, tables.LinkAction):
+    name = "detach_interface"
+    verbose_name = _("Detach Interface")
+    classes = ("btn-confirm", "ajax-modal")
+    url = "horizon:project:instances:detach_interface"
+
+    def allowed(self, request, instance):
+        return ((instance.status in ACTIVE_STATES
+                 or instance.status == 'SHUTOFF')
+                and not is_deleting(instance)
+                and api.base.is_service_enabled(request, 'network'))
+
+    def get_link_url(self, datum):
+        instance_id = self.table.get_object_id(datum)
+        return urlresolvers.reverse(self.url, args=[instance_id])
+
+
 def get_ips(instance):
     template_name = 'project/instances/_instance_ips.html'
     ip_groups = {}
 
-    for ip_group, addresses in instance.addresses.iteritems():
+    for ip_group, addresses in six.iteritems(instance.addresses):
         ip_groups[ip_group] = {}
         ip_groups[ip_group]["floating"] = []
         ip_groups[ip_group]["non_floating"] = []
@@ -1059,9 +1174,10 @@ class InstancesTable(tables.DataTable):
                                           InstancesFilterAction)
         row_actions = (StartInstance, ConfirmResize, RevertResize,
                        CreateSnapshot, SimpleAssociateIP, AssociateIP,
-                       SimpleDisassociateIP, EditInstance,
+                       SimpleDisassociateIP, AttachInterface,
+                       DetachInterface, EditInstance,
                        DecryptInstancePassword, EditInstanceSecurityGroups,
                        ConsoleLink, LogLink, TogglePause, ToggleSuspend,
-                       ResizeLink, LockInstance, UnlockInstance,
+                       ToggleShelve, ResizeLink, LockInstance, UnlockInstance,
                        SoftRebootInstance, RebootInstance,
                        StopInstance, RebuildInstance, TerminateInstance)

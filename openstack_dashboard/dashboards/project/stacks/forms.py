@@ -13,6 +13,7 @@
 import json
 import logging
 
+from django.utils import html
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.debug import sensitive_variables  # noqa
 
@@ -149,7 +150,7 @@ class TemplateForm(forms.SelfHandlingForm):
             validated = api.heat.template_validate(self.request, **kwargs)
             cleaned['template_validate'] = validated
         except Exception as e:
-            raise forms.ValidationError(unicode(e))
+            raise forms.ValidationError(six.text_type(e))
 
         return cleaned
 
@@ -310,7 +311,7 @@ class CreateStackForm(forms.SelfHandlingForm):
             field_args = {
                 'initial': param.get('Default', None),
                 'label': param.get('Label', param_key),
-                'help_text': param.get('Description', ''),
+                'help_text': html.escape(param.get('Description', '')),
                 'required': param.get('Default', None) is None
             }
 

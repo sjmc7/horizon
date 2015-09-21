@@ -396,8 +396,6 @@ def data(TEST):
     # Quota Sets
     quota_data = dict(metadata_items='1',
                       injected_file_content_bytes='1',
-                      volumes='1',
-                      gigabytes='1000',
                       ram=10000,
                       floating_ips='1',
                       fixed_ips='10',
@@ -516,10 +514,19 @@ def data(TEST):
              'instance_id': None,
              'ip': '58.58.58.58',
              'pool': 'pool2'}
-    TEST.api_floating_ips.add(generate_fip(fip_1), generate_fip(fip_2))
+    # this floating ip is for lbaas tests
+    fip_3 = {'id': 3,
+             'fixed_ip': '10.0.0.5',
+             # the underlying class maps the instance id to port id
+             'instance_id': '063cf7f3-ded1-4297-bc4c-31eae876cc91',
+             'ip': '58.58.58.58',
+             'pool': 'pool2'}
+    TEST.api_floating_ips.add(generate_fip(fip_1), generate_fip(fip_2),
+                              generate_fip(fip_3))
 
     TEST.floating_ips.add(nova.FloatingIp(generate_fip(fip_1)),
-                          nova.FloatingIp(generate_fip(fip_2)))
+                          nova.FloatingIp(generate_fip(fip_2)),
+                          nova.FloatingIp(generate_fip(fip_3)))
 
     # Floating IP with UUID id (for Floating IP with Neutron Proxy)
     fip_3 = {'id': str(uuid.uuid4()),

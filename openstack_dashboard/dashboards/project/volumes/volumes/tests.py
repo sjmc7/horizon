@@ -22,7 +22,8 @@ from django.forms import widgets
 from django import http
 from django.test.utils import override_settings
 
-from mox import IsA  # noqa
+from mox3.mox import IsA  # noqa
+import six
 
 from openstack_dashboard import api
 from openstack_dashboard.api import cinder
@@ -103,6 +104,7 @@ class VolumeViewTests(test.TestCase):
 
         url = reverse('horizon:project:volumes:volumes:create')
         res = self.client.post(url, formData)
+        self.assertNoFormErrors(res)
 
         redirect_url = VOLUME_VOLUMES_TAB_URL
         self.assertRedirectsNoFollow(res, redirect_url)
@@ -436,6 +438,7 @@ class VolumeViewTests(test.TestCase):
 
     @test.create_stubs({cinder: ('volume_snapshot_get',
                                  'volume_type_list',
+                                 'volume_type_default',
                                  'volume_get'),
                         api.glance: ('image_list_detailed',),
                         quotas: ('tenant_limit_usages',)})
@@ -452,6 +455,10 @@ class VolumeViewTests(test.TestCase):
 
         cinder.volume_type_list(IsA(http.HttpRequest)).\
             AndReturn(self.volume_types.list())
+        cinder.volume_type_list(IsA(http.HttpRequest)).\
+            AndReturn(self.volume_types.list())
+        cinder.volume_type_default(IsA(http.HttpRequest)).\
+            AndReturn(self.volume_types.first())
         quotas.tenant_limit_usages(IsA(http.HttpRequest)).\
             AndReturn(usage_limit)
         cinder.volume_snapshot_get(IsA(http.HttpRequest),
@@ -600,6 +607,7 @@ class VolumeViewTests(test.TestCase):
         self.assertRedirectsNoFollow(res, redirect_url)
 
     @test.create_stubs({cinder: ('volume_type_list',
+                                 'volume_type_default',
                                  'availability_zone_list',
                                  'extension_supported'),
                         api.glance: ('image_get',
@@ -618,6 +626,10 @@ class VolumeViewTests(test.TestCase):
 
         cinder.volume_type_list(IsA(http.HttpRequest)).\
             AndReturn(self.volume_types.list())
+        cinder.volume_type_list(IsA(http.HttpRequest)).\
+            AndReturn(self.volume_types.list())
+        cinder.volume_type_default(IsA(http.HttpRequest)).\
+            AndReturn(self.volume_types.first())
         quotas.tenant_limit_usages(IsA(http.HttpRequest)).\
             AndReturn(usage_limit)
         api.glance.image_get(IsA(http.HttpRequest),
@@ -649,6 +661,7 @@ class VolumeViewTests(test.TestCase):
         self.assertFormError(res, 'form', None, msg)
 
     @test.create_stubs({cinder: ('volume_type_list',
+                                 'volume_type_default',
                                  'availability_zone_list',
                                  'extension_supported'),
                         api.glance: ('image_get',
@@ -666,6 +679,10 @@ class VolumeViewTests(test.TestCase):
 
         cinder.volume_type_list(IsA(http.HttpRequest)).\
             AndReturn(self.volume_types.list())
+        cinder.volume_type_list(IsA(http.HttpRequest)).\
+            AndReturn(self.volume_types.list())
+        cinder.volume_type_default(IsA(http.HttpRequest)).\
+            AndReturn(self.volume_types.first())
         quotas.tenant_limit_usages(IsA(http.HttpRequest)).\
             AndReturn(usage_limit)
         api.glance.image_get(IsA(http.HttpRequest),
@@ -701,6 +718,7 @@ class VolumeViewTests(test.TestCase):
 
     @test.create_stubs({cinder: ('volume_snapshot_list',
                                  'volume_type_list',
+                                 'volume_type_default',
                                  'volume_list',
                                  'availability_zone_list',
                                  'extension_supported'),
@@ -718,6 +736,10 @@ class VolumeViewTests(test.TestCase):
 
         cinder.volume_type_list(IsA(http.HttpRequest)).\
             AndReturn(self.volume_types.list())
+        cinder.volume_type_list(IsA(http.HttpRequest)).\
+            AndReturn(self.volume_types.list())
+        cinder.volume_type_default(IsA(http.HttpRequest)).\
+            AndReturn(self.volume_types.first())
         quotas.tenant_limit_usages(IsA(http.HttpRequest)).\
             AndReturn(usage_limit)
         cinder.volume_snapshot_list(IsA(http.HttpRequest),
@@ -752,6 +774,7 @@ class VolumeViewTests(test.TestCase):
         self.assertEqual(res.context['form'].errors['__all__'], expected_error)
 
     @test.create_stubs({cinder: ('volume_snapshot_list',
+                                 'volume_type_default',
                                  'volume_type_list',
                                  'volume_list',
                                  'availability_zone_list',
@@ -770,6 +793,10 @@ class VolumeViewTests(test.TestCase):
 
         cinder.volume_type_list(IsA(http.HttpRequest)).\
             AndReturn(self.volume_types.list())
+        cinder.volume_type_list(IsA(http.HttpRequest)).\
+            AndReturn(self.volume_types.list())
+        cinder.volume_type_default(IsA(http.HttpRequest)).\
+            AndReturn(self.volume_types.first())
         quotas.tenant_limit_usages(IsA(http.HttpRequest)).\
             AndReturn(usage_limit)
         cinder.volume_snapshot_list(IsA(http.HttpRequest),
@@ -991,7 +1018,7 @@ class VolumeViewTests(test.TestCase):
 
         classes = (list(create_link.get_default_classes())
                    + list(create_link.classes))
-        link_name = "%s (%s)" % (unicode(create_link.verbose_name),
+        link_name = "%s (%s)" % (six.text_type(create_link.verbose_name),
                                  "Quota exceeded")
         expected_string = "<a href='%s' class=\"%s disabled\" "\
             "id=\"volumes__row_%s__action_snapshots\">%s</a>" \
@@ -1034,7 +1061,7 @@ class VolumeViewTests(test.TestCase):
         url = create_link.get_link_url()
         classes = (list(create_link.get_default_classes())
                    + list(create_link.classes))
-        link_name = "%s (%s)" % (unicode(create_link.verbose_name),
+        link_name = "%s (%s)" % (six.text_type(create_link.verbose_name),
                                  "Quota exceeded")
         expected_string = "<a href='%s' title='%s'  class='%s disabled' "\
             "id='volumes__action_create'  data-update-url=" \
@@ -1345,9 +1372,9 @@ class VolumeViewTests(test.TestCase):
         url = reverse('horizon:project:volumes:volumes:extend',
                       args=[volume.id])
         res = self.client.post(url, formData)
-        self.assertFormError(res, 'form', None,
-                             "New size must be greater than "
-                             "current size.")
+        self.assertFormErrors(res, 1,
+                              "New size must be greater than "
+                              "current size.")
 
     @test.create_stubs({cinder: ('volume_get',
                                  'tenant_absolute_limits')})
@@ -1405,35 +1432,6 @@ class VolumeViewTests(test.TestCase):
 
         redirect_url = VOLUME_INDEX_URL
         self.assertRedirectsNoFollow(res, redirect_url)
-
-    @test.create_stubs({cinder: ('volume_get',
-                                 'volume_type_list')})
-    def test_retype_volume_same_type(self):
-        volume = self.cinder_volumes.get(name='my_volume2')
-
-        volume_type = self.cinder_volume_types.get(name='vol_type_2')
-
-        form_data = {'id': volume.id,
-                     'name': volume.name,
-                     'volume_type': volume_type.name,
-                     'migration_policy': 'on-demand'}
-
-        cinder.volume_get(IsA(http.HttpRequest), volume.id).AndReturn(volume)
-
-        cinder.volume_type_list(
-            IsA(http.HttpRequest)).AndReturn(self.cinder_volume_types.list())
-
-        self.mox.ReplayAll()
-
-        url = reverse('horizon:project:volumes:volumes:retype',
-                      args=[volume.id])
-        res = self.client.post(url, form_data)
-
-        self.assertFormError(res,
-                             'form',
-                             'volume_type',
-                             'New volume type must be different from the '
-                             'original volume type "%s".' % volume_type.name)
 
     def test_encryption_false(self):
         self._test_encryption(False)

@@ -82,17 +82,19 @@ def network_field_data(request, include_empty_option=False):
 
     :param request: django http request object
     :param include_empty_option: flag to include a empty tuple in the front of
-    the list
+         the list
     :return: list of (id, name) tuples
     """
     tenant_id = request.user.tenant_id
-    try:
-        networks = api.neutron.network_list_for_tenant(request, tenant_id)
-        networks = [(n.id, n.name_or_id) for n in networks]
-        networks.sort(key=lambda obj: obj[1])
-    except Exception as e:
-        msg = _('Failed to get network list {0}').format(six.text_type(e))
-        exceptions.handle(request, msg)
+    networks = []
+    if api.base.is_service_enabled(request, 'network'):
+        try:
+            networks = api.neutron.network_list_for_tenant(request, tenant_id)
+            networks = [(n.id, n.name_or_id) for n in networks]
+            networks.sort(key=lambda obj: obj[1])
+        except Exception as e:
+            msg = _('Failed to get network list {0}').format(six.text_type(e))
+            exceptions.handle(request, msg)
 
     if not networks:
         if include_empty_option:
@@ -112,7 +114,7 @@ def keypair_field_data(request, include_empty_option=False):
 
     :param request: django http request object
     :param include_empty_option: flag to include a empty tuple in the front of
-    the list
+        the list
     :return: list of (id, name) tuples
     """
     keypair_list = []
@@ -121,7 +123,6 @@ def keypair_field_data(request, include_empty_option=False):
         keypair_list = [(kp.name, kp.name) for kp in keypairs]
     except Exception:
         exceptions.handle(request, _('Unable to retrieve key pairs.'))
-        keypair_list = []
 
     if not keypair_list:
         if include_empty_option:
@@ -141,7 +142,7 @@ def flavor_field_data(request, include_empty_option=False):
 
     :param request: django http request object
     :param include_empty_option: flag to include a empty tuple in the front of
-    the list
+        the list
     :return: list of (id, name) tuples
     """
     flavors = flavor_list(request)

@@ -22,7 +22,8 @@ from socket import timeout as socket_timeout  # noqa
 from django.core.urlresolvers import reverse
 from django import http
 
-from mox import IsA  # noqa
+from mox3.mox import IsA  # noqa
+import six
 
 from horizon import exceptions
 
@@ -98,11 +99,12 @@ class ImagesAndSnapshotsTests(test.TestCase):
         row_actions = snaps.get_row_actions(snaps.data[0])
 
         # first instance - status active, owned
-        self.assertEqual(len(row_actions), 4)
+        self.assertEqual(len(row_actions), 5)
         self.assertEqual(row_actions[0].verbose_name, u"Launch Instance")
         self.assertEqual(row_actions[1].verbose_name, u"Create Volume")
         self.assertEqual(row_actions[2].verbose_name, u"Edit Image")
-        self.assertEqual(row_actions[3].verbose_name, u"Delete Image")
+        self.assertEqual(row_actions[3].verbose_name, u"Update Metadata")
+        self.assertEqual(row_actions[4].verbose_name, u"Delete Image")
 
         row_actions = snaps.get_row_actions(snaps.data[1])
 
@@ -114,7 +116,7 @@ class ImagesAndSnapshotsTests(test.TestCase):
         row_actions = snaps.get_row_actions(snaps.data[2])
         # third instance - status queued, only delete is available
         self.assertEqual(len(row_actions), 1)
-        self.assertEqual(unicode(row_actions[0].verbose_name),
+        self.assertEqual(six.text_type(row_actions[0].verbose_name),
                          u"Delete Image")
         self.assertEqual(str(row_actions[0]), "<DeleteImage: delete>")
 
@@ -318,6 +320,14 @@ class SeleniumTests(test.SeleniumTestCase):
         api.glance.image_list_detailed(IsA(http.HttpRequest),
                                        marker=None).AndReturn([images,
                                                                False, False])
+        filters = {'disk_format': 'aki'}
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest), filters=filters).AndReturn(
+            [self.images.list(), False, False])
+        filters = {'disk_format': 'ari'}
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest), filters=filters).AndReturn(
+            [self.images.list(), False, False])
         self.mox.ReplayAll()
 
         driver.get("%s%s" % (self.live_server_url, INDEX_URL))
@@ -344,6 +354,14 @@ class SeleniumTests(test.SeleniumTestCase):
         api.glance.image_list_detailed(IsA(http.HttpRequest),
                                        marker=None).AndReturn([images,
                                                                False, False])
+        filters = {'disk_format': 'aki'}
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest), filters=filters).AndReturn(
+            [self.images.list(), False, False])
+        filters = {'disk_format': 'ari'}
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest), filters=filters).AndReturn(
+            [self.images.list(), False, False])
         self.mox.ReplayAll()
 
         driver.get("%s%s" % (self.live_server_url, INDEX_URL))
@@ -362,8 +380,19 @@ class SeleniumTests(test.SeleniumTestCase):
         self.assertTrue("ISO" in body.text,
                         "ISO should be selected when the extension is *.iso")
 
+    @test.create_stubs({api.glance: ('image_list_detailed',)})
     def test_create_image_from_url(self):
         driver = self.selenium
+        filters = {'disk_format': 'aki'}
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest), filters=filters).AndReturn(
+            [self.images.list(), False, False])
+        filters = {'disk_format': 'ari'}
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest), filters=filters).AndReturn(
+            [self.images.list(), False, False])
+        self.mox.ReplayAll()
+
         driver.get("%s%s" % (self.live_server_url, CREATE_URL))
         wait = self.ui.WebDriverWait(driver, 10,
                                      ignored_exceptions=[socket_timeout])
@@ -378,8 +407,19 @@ class SeleniumTests(test.SeleniumTestCase):
         self.assertTrue("ISO" in body.text,
                         "ISO should be selected when the extension is *.iso")
 
+    @test.create_stubs({api.glance: ('image_list_detailed',)})
     def test_create_image_from_file(self):
         driver = self.selenium
+        filters = {'disk_format': 'aki'}
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest), filters=filters).AndReturn(
+            [self.images.list(), False, False])
+        filters = {'disk_format': 'ari'}
+        api.glance.image_list_detailed(
+            IsA(http.HttpRequest), filters=filters).AndReturn(
+            [self.images.list(), False, False])
+        self.mox.ReplayAll()
+
         driver.get("%s%s" % (self.live_server_url, CREATE_URL))
         wait = self.ui.WebDriverWait(driver, 10,
                                      ignored_exceptions=[socket_timeout])

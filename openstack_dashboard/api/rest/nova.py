@@ -19,6 +19,7 @@ from django.utils import http as utils_http
 from django.views import generic
 
 from openstack_dashboard import api
+from openstack_dashboard.api.rest import json_encoder
 from openstack_dashboard.api.rest import urls
 from openstack_dashboard.api.rest import utils as rest_utils
 
@@ -91,7 +92,7 @@ class Limits(generic.View):
     """
     url_regex = r'nova/limits/$'
 
-    @rest_utils.ajax()
+    @rest_utils.ajax(json_encoder=json_encoder.NaNJSONEncoder)
     def get(self, request):
         """Get an object describing the current project limits.
 
@@ -250,7 +251,7 @@ class Flavors(generic.View):
 class Flavor(generic.View):
     """API for retrieving a single flavor
     """
-    url_regex = r'nova/flavors/(?P<flavor_id>.+)/$'
+    url_regex = r'nova/flavors/(?P<flavor_id>[^/]+)/$'
 
     @rest_utils.ajax()
     def get(self, request, flavor_id):
@@ -274,7 +275,7 @@ class Flavor(generic.View):
 class FlavorExtraSpecs(generic.View):
     """API for managing flavor extra specs
     """
-    url_regex = r'nova/flavors/(?P<flavor_id>.+)/extra-specs$'
+    url_regex = r'nova/flavors/(?P<flavor_id>[^/]+)/extra-specs/$'
 
     @rest_utils.ajax()
     def get(self, request, flavor_id):
@@ -284,3 +285,45 @@ class FlavorExtraSpecs(generic.View):
         http://localhost/api/nova/flavors/1/extra-specs
         """
         return api.nova.flavor_get_extras(request, flavor_id, raw=True)
+
+    @rest_utils.ajax(data_required=True)
+    def patch(self, request, flavor_id):
+        """Update a specific flavor's extra specs.
+
+        This method returns HTTP 204 (no content) on success.
+        """
+        if request.DATA.get('removed'):
+            api.nova.flavor_extra_delete(
+                request, flavor_id, request.DATA.get('removed')
+            )
+        api.nova.flavor_extra_set(
+            request, flavor_id, request.DATA['updated']
+        )
+
+
+@urls.register
+class AggregateExtraSpecs(generic.View):
+    """API for managing aggregate extra specs
+    """
+    url_regex = r'nova/aggregates/(?P<aggregate_id>[^/]+)/extra-specs/$'
+
+    @rest_utils.ajax()
+    def get(self, request, aggregate_id):
+        """Get a specific aggregate's extra specs
+
+        Example GET:
+        http://localhost/api/nova/flavors/1/extra-specs
+        """
+        return api.nova.aggregate_get(request, aggregate_id).metadata
+
+    @rest_utils.ajax(data_required=True)
+    def patch(self, request, aggregate_id):
+        """Update a specific aggregate's extra specs.
+
+        This method returns HTTP 204 (no content) on success.
+        """
+        updated = request.DATA['updated']
+        if request.DATA.get('removed'):
+            for name in request.DATA.get('removed'):
+                updated[name] = None
+        api.nova.aggregate_set_metadata(request, aggregate_id, updated)

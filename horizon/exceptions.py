@@ -154,6 +154,7 @@ class ServiceCatalogException(HorizonException):
         super(ServiceCatalogException, self).__init__(message)
 
 
+@six.python_2_unicode_compatible
 class AlreadyExists(HorizonException):
     """Exception to be raised when trying to create an API resource which
     already exists.
@@ -166,9 +167,6 @@ class AlreadyExists(HorizonException):
         return self.msg % self.attrs
 
     def __str__(self):
-        return self.msg % self.attrs
-
-    def __unicode__(self):
         return self.msg % self.attrs
 
 
@@ -203,6 +201,7 @@ class HandledException(HorizonException):
 
 
 UNAUTHORIZED = tuple(HORIZON_CONFIG['exceptions']['unauthorized'])
+UNAUTHORIZED += (NotAuthorized,)
 NOT_FOUND = tuple(HORIZON_CONFIG['exceptions']['not_found'])
 RECOVERABLE = (AlreadyExists, Conflict, NotAvailable, ServiceCatalogException)
 RECOVERABLE += tuple(HORIZON_CONFIG['exceptions']['recoverable'])
@@ -219,7 +218,7 @@ def check_message(keywords, message):
     """
     exc_type, exc_value, exc_traceback = sys.exc_info()
     if set(str(exc_value).split(" ")).issuperset(set(keywords)):
-        exc_value._safe_message = message
+        exc_value.message = message
         raise
 
 
@@ -281,7 +280,8 @@ def handle_recoverable(request, message, redirect, ignore, escalate, handled,
 
 
 HANDLE_EXC_METHODS = [
-    {'exc': UNAUTHORIZED, 'handler': handle_unauthorized, 'set_wrap': False},
+    {'exc': UNAUTHORIZED, 'handler': handle_unauthorized,
+     'set_wrap': False, 'escalate': True},
     {'exc': NOT_FOUND, 'handler': handle_notfound, 'set_wrap': True},
     {'exc': RECOVERABLE, 'handler': handle_recoverable, 'set_wrap': True},
 ]
@@ -334,24 +334,23 @@ def handle(request, message=None, redirect=None, ignore=False,
 
     log_entry = encoding.force_text(exc_value)
 
+    user_message = ""
     # We trust messages from our own exceptions
     if issubclass(exc_type, HorizonException):
-        message = exc_value
-    # Check for an override message
-    elif getattr(exc_value, "_safe_message", None):
-        message = exc_value._safe_message
+        user_message = log_entry
     # If the message has a placeholder for the exception, fill it in
     elif message and "%(exc)s" in message:
-        message = encoding.force_text(message) % {"exc": log_entry}
-    if message:
-        message = encoding.force_text(message)
+        user_message = encoding.force_text(message) % {"exc": log_entry}
+    elif message:
+        user_message = encoding.force_text(message)
 
     for exc_handler in HANDLE_EXC_METHODS:
         if issubclass(exc_type, exc_handler['exc']):
             if exc_handler['set_wrap']:
                 wrap = True
             handler = exc_handler['handler']
-            ret = handler(request, message, redirect, ignore, escalate,
+            ret = handler(request, user_message, redirect, ignore,
+                          exc_handler.get('escalate', escalate),
                           handled, force_silence, force_log,
                           log_method, log_entry, log_level)
             if ret:
@@ -360,5 +359,14 @@ def handle(request, message=None, redirect=None, ignore=False,
     # If we've gotten here, time to wrap and/or raise our exception.
     if wrap:
         raise HandledException([exc_type, exc_value, exc_traceback])
+
+    # assume exceptions handled in the code that pass in a message are already
+    # handled appropriately and treat as recoverable
+    if message:
+        ret = handle_recoverable(request, user_message, redirect, ignore,
+                                 escalate, handled, force_silence, force_log,
+                                 log_method, log_entry, log_level)
+        if ret:
+            return ret
 
     six.reraise(exc_type, exc_value, exc_traceback)

@@ -39,6 +39,8 @@ LOGOUT_URL = '/auth/logout/'
 LOGIN_REDIRECT_URL = '/'
 
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
+STATIC_ROOT = os.path.abspath(os.path.join(ROOT_PATH, '..', 'static'))
+
 DEBUG = False
 TEMPLATE_DEBUG = DEBUG
 TESTSERVER = 'http://testserver'
@@ -103,6 +105,7 @@ TEMPLATE_LOADERS = (
 )
 
 STATIC_URL = '/static/'
+WEBROOT = '/'
 
 MESSAGE_STORAGE = 'django.contrib.messages.storage.cookie.CookieStorage'
 

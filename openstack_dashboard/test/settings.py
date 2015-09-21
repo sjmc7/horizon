@@ -15,6 +15,7 @@ import os
 from horizon.test.settings import *  # noqa
 from horizon.utils import secret_key
 from openstack_dashboard import exceptions
+from openstack_dashboard.static_settings import find_static_files  # noqa
 from openstack_dashboard.static_settings import get_staticfiles_dirs  # noqa
 
 STATICFILES_DIRS = get_staticfiles_dirs()
@@ -22,6 +23,8 @@ STATICFILES_DIRS = get_staticfiles_dirs()
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_PATH = os.path.abspath(os.path.join(TEST_DIR, ".."))
 STATIC_ROOT = os.path.abspath(os.path.join(ROOT_PATH, '..', 'static'))
+STATIC_URL = '/static/'
+WEBROOT = '/'
 
 SECRET_KEY = secret_key.generate_or_read_from_file(
     os.path.join(TEST_DIR, '.secret_key_store'))
@@ -33,6 +36,8 @@ TEMPLATE_DIRS = (
 TEMPLATE_CONTEXT_PROCESSORS += (
     'openstack_dashboard.context_processors.openstack',
 )
+
+COMPRESS_OFFLINE = False
 
 INSTALLED_APPS = (
     'django.contrib.contenttypes',
@@ -46,11 +51,6 @@ INSTALLED_APPS = (
     'compressor',
     'horizon',
     'openstack_dashboard',
-    'openstack_dashboard.dashboards.project',
-    'openstack_dashboard.dashboards.admin',
-    'openstack_dashboard.dashboards.identity',
-    'openstack_dashboard.dashboards.settings',
-    'openstack_dashboard.dashboards.router',
 )
 
 AUTHENTICATION_BACKENDS = ('openstack_auth.backend.KeystoneBackend',)
@@ -58,8 +58,6 @@ AUTHENTICATION_BACKENDS = ('openstack_auth.backend.KeystoneBackend',)
 SITE_BRANDING = 'OpenStack'
 
 HORIZON_CONFIG = {
-    'dashboards': ('project', 'admin', 'identity', 'settings', 'router',),
-    'default_dashboard': 'project',
     "password_validator": {
         "regex": '^.{8,18}$',
         "help_text": "Password must be between 8 and 18 characters."
@@ -72,6 +70,24 @@ HORIZON_CONFIG = {
     'angular_modules': [],
     'js_files': [],
 }
+
+# Load the pluggable dashboard settings
+import openstack_dashboard.enabled
+import openstack_dashboard.local.enabled
+from openstack_dashboard.utils import settings
+
+INSTALLED_APPS = list(INSTALLED_APPS)  # Make sure it's mutable
+settings.update_dashboards(
+    [
+        openstack_dashboard.enabled,
+        openstack_dashboard.local.enabled,
+    ],
+    HORIZON_CONFIG,
+    INSTALLED_APPS,
+)
+INSTALLED_APPS[0:0] = []
+
+find_static_files(HORIZON_CONFIG)
 
 # Set to True to allow users to upload images to glance via Horizon server.
 # When enabled, a file form field will appear on the create image form.

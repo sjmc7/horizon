@@ -26,6 +26,7 @@ from django.conf import settings
 from django.utils.translation import pgettext_lazy
 from django.utils.translation import ugettext_lazy as _
 
+from cinderclient.exceptions import ClientException  # noqa
 from cinderclient.v2.contrib import list_extensions as cinder_list_extensions
 
 from horizon import exceptions
@@ -71,12 +72,6 @@ class BaseCinderAPIResourceWrapper(base.APIResourceWrapper):
     def description(self):
         return (getattr(self._apiresource, 'description', None) or
                 getattr(self._apiresource, 'display_description', None))
-
-    def to_dict(self):
-        obj = {}
-        for key in self._attrs:
-            obj[key] = getattr(self._apiresource, key, None)
-        return obj
 
 
 class Volume(BaseCinderAPIResourceWrapper):
@@ -140,6 +135,14 @@ class VolumeTransfer(base.APIResourceWrapper):
     _attrs = ['id', 'name', 'created_at', 'volume_id', 'auth_key']
 
 
+class VolumePool(base.APIResourceWrapper):
+
+    _attrs = ['name', 'pool_name', 'total_capacity_gb', 'free_capacity_gb',
+              'allocated_capacity_gb', 'QoS_support', 'reserved_percentage',
+              'volume_backend_name', 'vendor_name', 'driver_version',
+              'storage_protocol', 'extra_specs']
+
+
 @memoized
 def cinderclient(request):
     api_version = VERSIONS.get_active_version()
@@ -189,6 +192,7 @@ def volume_list(request, search_opts=None):
     """To see all volumes in the cloud as an admin you can pass in a special
     search option: {'all_tenants': 1}
     """
+
     c_client = cinderclient(request)
     if c_client is None:
         return []
@@ -213,8 +217,8 @@ def volume_get(request, volume_id):
             instance = nova.server_get(request, attachment['server_id'])
             attachment['instance_name'] = instance.name
         else:
-            # Nova volume can occasionally send attachments in error state
-            # that lack a server_id property; to work around that we'll
+            # Nova volume can occasionally send back error'd attachments
+            # the lack a server_id property; to work around that we'll
             # give the attached instance a generic name.
             attachment['instance_name'] = _("Unknown instance")
 
@@ -445,6 +449,24 @@ def volume_type_list_with_qos_associations(request):
     return vol_types
 
 
+def volume_type_get_with_qos_association(request, volume_type_id):
+    vol_type = volume_type_get(request, volume_type_id)
+    vol_type.associated_qos_spec = ""
+
+    # get all currently defined qos specs
+    qos_specs = qos_spec_list(request)
+    for qos_spec in qos_specs:
+        # get all volume types this qos spec is associated with
+        assoc_vol_types = qos_spec_get_associations(request, qos_spec.id)
+        for assoc_vol_type in assoc_vol_types:
+            if vol_type.id == assoc_vol_type.id:
+                # update volume type to hold this association info
+                vol_type.associated_qos_spec = qos_spec.name
+                return vol_type
+
+    return vol_type
+
+
 def default_quota_update(request, **kwargs):
     cinderclient(request).quota_classes.update(DEFAULT_QUOTA_NAME, **kwargs)
 
@@ -453,8 +475,18 @@ def volume_type_list(request):
     return cinderclient(request).volume_types.list()
 
 
-def volume_type_create(request, name):
-    return cinderclient(request).volume_types.create(name)
+def volume_type_create(request, name, description=None):
+    return cinderclient(request).volume_types.create(name, description)
+
+
+def volume_type_update(request, volume_type_id, name=None, description=None):
+    return cinderclient(request).volume_types.update(volume_type_id,
+                                                     name,
+                                                     description)
+
+
+def volume_type_default(request):
+    return cinderclient(request).volume_types.default()
 
 
 def volume_type_delete(request, volume_type_id):
@@ -618,3 +650,12 @@ def transfer_accept(request, transfer_id, auth_key):
 
 def transfer_delete(request, transfer_id):
     return cinderclient(request).transfers.delete(transfer_id)
+
+
+def pool_list(request, detailed=False):
+    c_client = cinderclient(request)
+    if c_client is None:
+        return []
+
+    return [VolumePool(v) for v in c_client.pools.list(
+        detailed=detailed)]

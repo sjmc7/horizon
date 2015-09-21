@@ -11,11 +11,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from collections import OrderedDict
 import logging
 
-from django.utils.datastructures import SortedDict
 from django.utils.http import urlencode
 from django.utils.translation import ugettext_lazy as _
+import six
 
 from horizon import exceptions
 
@@ -25,7 +26,7 @@ from openstack_dashboard import api
 
 LOG = logging.getLogger(__name__)
 
-CONSOLES = SortedDict([('VNC', api.nova.server_vnc_console),
+CONSOLES = OrderedDict([('VNC', api.nova.server_vnc_console),
                        ('SPICE', api.nova.server_spice_console),
                        ('RDP', api.nova.server_rdp_console),
                        ('SERIAL', api.nova.server_serial_console)])
@@ -48,7 +49,7 @@ def get_console(request, console_type, instance):
     except AttributeError:
         httpnotimplemented = nova_exception.HTTPNotImplemented
 
-    for con_type, api_call in check_consoles.iteritems():
+    for con_type, api_call in six.iteritems(check_consoles):
         try:
             console = api_call(request, instance.id)
         # If not supported, don't log it to avoid lot of errors in case
