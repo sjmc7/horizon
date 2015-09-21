@@ -68,13 +68,13 @@
       });
 
       var nav_links = {
-          'overview': {'_id': 'overview', 'name': 'Overview', 'link': '/project', 'nav': true},
-          'instances': {'_id': 'instances', 'name': 'Instances', 'link': '/project/instances', 'nav': true},
-          'images': {'_id': 'images', 'name': 'Images', 'link': '/project/images', 'nav': true},
-          'security groups': {'_id': 'security groups', 'name': 'Security Groups', 'link': '/project/access_and_security/?tab=access_security_tabs__security_groups_tab', 'nav': true},
-          'key pairs': {'_id': 'key pairs', 'name': 'Key Pairs', 'link': '/project/access_and_security/?tab=access_security_tabs__keypairs_tab', 'nav': true},
-          'networks': {'_id': 'networks', 'name': 'Networks', 'link': '/project/networks', 'nav': true},
-          'network topology': {'_id': 'network toplogy', 'name': 'Network Toplogy', 'link': '/project/network_topology', 'nav': true},
+          'overview': {'_id': 'overview', 'name': 'Overview', 'link': '/dashboard/project', 'nav': true},
+          'instances': {'_id': 'instances', 'name': 'Instances', 'link': '/dashboard/project/instances', 'nav': true},
+          'images': {'_id': 'images', 'name': 'Images', 'link': '/dashboard/project/images', 'nav': true},
+          'security groups': {'_id': 'security groups', 'name': 'Security Groups', 'link': '/dashboard/project/access_and_security/?tab=access_security_tabs__security_groups_tab', 'nav': true},
+          'key pairs': {'_id': 'key pairs', 'name': 'Key Pairs', 'link': '/dashboard/project/access_and_security/?tab=access_security_tabs__keypairs_tab', 'nav': true},
+          'networks': {'_id': 'networks', 'name': 'Networks', 'link': '/dashboard/project/networks', 'nav': true},
+          'network topology': {'_id': 'network toplogy', 'name': 'Network Toplogy', 'link': '/dashboard/project/network_topology', 'nav': true},
       }
 
       $('#magic-searchlight').selectize({
@@ -119,13 +119,13 @@
             } else {
                 switch (selectedItem['_type']) {
                     case 'OS::Glance::Image':
-                        redirect_url = '/project/images/' + selectedItem['_id'];
+                        redirect_url = '/dashboard/project/images/' + selectedItem['_id'];
                         break;
                     case 'OS::Nova::Server':
-                        redirect_url = '/project/instances/' + selectedItem['_id'];
+                        redirect_url = '/dashboard/project/instances/' + selectedItem['_id'];
                         break;
                     case 'OS::Glance::Metadef':
-                        redirect_url = '/admin/metadata_defs/' + selectedItem['_id'] + '/detail';
+                        redirect_url = '/dashboard/admin/metadata_defs/' + selectedItem['_id'] + '/detail';
                         break;
                 }
                 ;
